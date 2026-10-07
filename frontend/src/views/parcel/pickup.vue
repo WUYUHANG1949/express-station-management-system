@@ -63,7 +63,7 @@
             class="parcel-card"
             :class="{
               'is-active': selectedParcel && selectedParcel.id === item.id,
-              'is-disabled': item.status !== 'IN_STORE'
+              'is-disabled': !isPickable(item.status)
             }"
             @click="selectParcel(item)"
           >
@@ -102,7 +102,7 @@
                 <span v-if="Number(item.overdueFee) > 0" class="text-danger">（逾期费 {{ formatMoney(item.overdueFee, true) }}）</span>
               </span>
             </div>
-            <div v-if="item.status !== 'IN_STORE'" class="parcel-card__mask">
+            <div v-if="!isPickable(item.status)" class="parcel-card__mask">
               <el-tag type="danger" effect="dark">该快件当前状态不可取件</el-tag>
             </div>
           </div>
@@ -205,13 +205,13 @@
               size="large"
               :icon="Finished"
               :loading="submitting"
-              :disabled="selectedParcel.status !== 'IN_STORE'"
+              :disabled="!isPickable(selectedParcel.status)"
               @click="handlePickup"
             >
               确认核销
             </el-button>
             <el-button size="large" @click="handleCancelSelect">取消选择</el-button>
-            <el-tooltip v-if="selectedParcel.status !== 'IN_STORE'" content="仅「在库待取」状态的快件可以核销" placement="top">
+            <el-tooltip v-if="!isPickable(selectedParcel.status)" content="仅「在库待取」与「派送中」状态的快件可以核销" placement="top">
               <el-tag type="danger" effect="plain" class="ml-8">当前状态不可取件</el-tag>
             </el-tooltip>
           </el-form-item>
@@ -250,6 +250,23 @@ import {
 import { formatDateTime, formatMoney, formatNumber } from '@/utils/format'
 
 const userStore = useUserStore()
+
+/**
+ * 可核销的快件状态。
+ * 后端 ParcelService.pickup 允许「在库待取」与「派送中」两种状态核销：
+ * 派送中的快件由员工送上门、客户当面签收时同样需要走核销流程，
+ * 因此前端必须与后端保持同一口径，否则派送中的快件将无法签收。
+ */
+const PICKABLE_STATUS = ['IN_STORE', 'DELIVERING']
+
+/**
+ * 判断某状态的快件当前是否可以核销
+ * @param {string} status 快件状态编码
+ * @returns {boolean} 可核销返回 true
+ */
+function isPickable(status) {
+  return PICKABLE_STATUS.includes(status)
+}
 
 /** 搜索框引用（用于自动聚焦） */
 const keywordInputRef = ref(null)
@@ -365,7 +382,7 @@ async function handleQuery() {
 
     // 只有一条且状态可核销时自动选中，减少一次点击
     const onlyOne = resultList.value.length === 1 ? resultList.value[0] : null
-    if (onlyOne && onlyOne.status === 'IN_STORE') {
+    if (onlyOne && isPickable(onlyOne.status)) {
       await selectParcel(onlyOne)
     } else {
       ElMessage.success(`查询到 ${resultList.value.length} 条匹配记录，请选择要核销的快件`)
@@ -419,7 +436,7 @@ async function selectParcel(item) {
     feeLoading.value = false
   }
 
-  if (item.status !== 'IN_STORE') {
+  if (!isPickable(item.status)) {
     ElMessage.warning('该快件当前状态不可取件')
   }
 }
@@ -464,7 +481,7 @@ async function handlePickup() {
     ElMessage.warning('请先选择要核销的快件')
     return
   }
-  if (selectedParcel.value.status !== 'IN_STORE') {
+  if (!isPickable(selectedParcel.value.status)) {
     ElMessage.error('该快件当前状态不可取件')
     return
   }
