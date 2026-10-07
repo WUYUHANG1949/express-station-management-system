@@ -61,6 +61,12 @@ export const routes = [
         component: () => import('@/views/parcel/pickup.vue'),
         meta: { title: '取件核销', icon: 'Finished', perm: 'parcel:pickup' }
       },
+      {
+        path: 'parcel/overdue',
+        name: 'ParcelOverdue',
+        component: () => import('@/views/parcel/overdue.vue'),
+        meta: { title: '逾期催取', icon: 'AlarmClock', perm: 'parcel:overdue', keepAlive: true }
+      },
       // ---------------- 寄件管理 ----------------
       {
         path: 'ship/list',
@@ -107,6 +113,20 @@ export const routes = [
         component: () => import('@/views/system/shelf.vue'),
         meta: { title: '货位管理', icon: 'Grid', perm: 'system:shelf:list', keepAlive: true }
       },
+      // ---------------- 通知管理 ----------------
+      {
+        path: 'notify/list',
+        name: 'NotifyList',
+        component: () => import('@/views/notify/list.vue'),
+        meta: { title: '通知记录', icon: 'ChatDotSquare', perm: 'notify:list', keepAlive: true }
+      },
+      // ---------------- 货位地图 ----------------
+      {
+        path: 'shelf-map',
+        name: 'ShelfMap',
+        component: () => import('@/views/shelf/map.vue'),
+        meta: { title: '货位地图', icon: 'MapLocation', perm: 'shelfmap:view', keepAlive: true }
+      },
       // ---------------- 个人中心 ----------------
       {
         path: 'profile',
@@ -115,6 +135,20 @@ export const routes = [
         meta: { title: '个人中心', icon: 'UserFilled', perm: 'profile' }
       }
     ]
+  },
+  {
+    // 数据大屏：脱离主布局全屏展示，需要 screen 权限
+    path: '/screen',
+    name: 'DataScreen',
+    component: () => import('@/views/screen/index.vue'),
+    meta: { title: '数据大屏', perm: 'screen', hidden: true }
+  },
+  {
+    // 收件人自助查询取件码：免登录，脱离主布局
+    path: '/query',
+    name: 'PickupQuery',
+    component: () => import('@/views/query/index.vue'),
+    meta: { title: '取件码查询', public: true, hidden: true }
   },
   {
     // 404 兜底，必须放在最后
@@ -203,6 +237,27 @@ router.beforeEach(async (to, from, next) => {
   }
 
   next()
+})
+
+/* ------------------------------------------------------------------
+ * 动态模块加载失败的自愈
+ * 页面组件是懒加载的，如果开发服务器重启过、或部署后旧页面仍在新标签里，
+ * 浏览器会因请求到已失效的 chunk 而报 "Failed to fetch dynamically imported module"，
+ * 此时 Vue Router 无法渲染目标组件，表现就是「内容区一片空白」。
+ * 这里统一捕获这类错误并自动刷新一次页面，让用户重新拿到最新的资源清单。
+ * ---------------------------------------------------------------- */
+const CHUNK_ERROR_PATTERN =
+  /Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+
+router.onError((error) => {
+  const message = (error && error.message) || ''
+  if (CHUNK_ERROR_PATTERN.test(message)) {
+    ElMessage.warning('页面资源已更新，正在自动刷新…')
+    window.setTimeout(() => window.location.reload(), 600)
+    return
+  }
+  // 其它路由级错误：打印出来方便定位，不影响用户继续操作
+  console.error('[router error]', error)
 })
 
 export default router

@@ -8,7 +8,8 @@ import App from './App.vue'
 import router from './router'
 import pinia from './stores'
 import permissionDirective from './directives/permission'
-import './styles/index.css'
+// 全站主题样式（设计 token + Element Plus 覆盖 + 组件美化 + 动效）
+import './styles/theme.css'
 
 /**
  * 应用入口

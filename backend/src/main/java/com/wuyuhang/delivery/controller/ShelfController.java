@@ -6,6 +6,7 @@ import com.wuyuhang.delivery.dto.ShelfSaveDTO;
 import com.wuyuhang.delivery.entity.Shelf;
 import com.wuyuhang.delivery.security.RequiresPermission;
 import com.wuyuhang.delivery.service.ShelfService;
+import com.wuyuhang.delivery.vo.ShelfMapVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,6 +35,13 @@ import java.util.List;
 public class ShelfController {
 
     private final ShelfService shelfService;
+
+    @Operation(summary = "货位地图", description = "按库位返回占用情况与该库位上的快件清单，供前端画货架网格图")
+    @GetMapping("/map")
+    @RequiresPermission("shelfmap:view")
+    public Result<List<ShelfMapVO>> shelfMap(@RequestParam(required = false) Long stationId) {
+        return Result.success(shelfService.shelfMap(stationId));
+    }
 
     @Operation(summary = "查询某驿站的全部货位")
     @GetMapping("/list")

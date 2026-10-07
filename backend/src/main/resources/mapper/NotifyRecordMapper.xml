@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuyuhang.delivery.mapper.NotifyRecordMapper">
+
+    <resultMap id="NotifyResultMap" type="com.wuyuhang.delivery.entity.NotifyRecord">
+        <id column="id" property="id"/>
+        <result column="parcel_id" property="parcelId"/>
+        <result column="waybill_no" property="waybillNo"/>
+        <result column="pickup_code" property="pickupCode"/>
+        <result column="notify_type" property="notifyType"/>
+        <result column="channel" property="channel"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+        <result column="content" property="content"/>
+        <result column="send_status" property="sendStatus"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="station_id" property="stationId"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="operator_name" property="operatorName"/>
+        <result column="send_time" property="sendTime"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="station_name" property="stationName"/>
+    </resultMap>
+
+    <sql id="notifyColumns">
+        n.id, n.parcel_id, n.waybill_no, n.pickup_code, n.notify_type, n.channel,
+        n.receiver_phone, n.content, n.send_status, n.fail_reason, n.station_id,
+        n.operator_id, n.operator_name, n.send_time,
+        p.receiver_name AS receiver_name,
+        st.station_name AS station_name
+    </sql>
+
+    <sql id="notifyJoins">
+        FROM notify_record n
+        LEFT JOIN parcel p ON p.id = n.parcel_id
+        LEFT JOIN station st ON st.id = n.station_id
+    </sql>
+
+    <sql id="notifyConditions">
+        <if test="q.waybillNo != null and q.waybillNo != ''">
+            AND n.waybill_no LIKE CONCAT('%', #{q.waybillNo}, '%')
+        </if>
+        <if test="q.receiverPhone != null and q.receiverPhone != ''">
+            AND n.receiver_phone LIKE CONCAT('%', #{q.receiverPhone}, '%')
+        </if>
+        <if test="q.notifyType != null and q.notifyType != ''">
+            AND n.notify_type = #{q.notifyType}
+        </if>
+        <if test="q.channel != null and q.channel != ''">
+            AND n.channel = #{q.channel}
+        </if>
+        <if test="q.sendStatus != null and q.sendStatus != ''">
+            AND n.send_status = #{q.sendStatus}
+        </if>
+        <if test="q.stationId != null">
+            AND n.station_id = #{q.stationId}
+        </if>
+        <if test="q.startTime != null">
+            AND n.send_time &gt;= #{q.startTime}
+        </if>
+        <if test="q.endTime != null">
+            AND n.send_time &lt; DATE_ADD(#{q.endTime}, INTERVAL 1 DAY)
+        </if>
+    </sql>
+
+    <select id="selectNotifyPage" resultMap="NotifyResultMap">
+        SELECT
+        <include refid="notifyColumns"/>
+        <include refid="notifyJoins"/>
+        WHERE 1 = 1
+        <include refid="notifyConditions"/>
+        ORDER BY n.send_time DESC, n.id DESC
+    </select>
+
+    <select id="selectByParcelId" resultMap="NotifyResultMap">
+        SELECT
+        <include refid="notifyColumns"/>
+        <include refid="notifyJoins"/>
+        WHERE n.parcel_id = #{parcelId}
+        ORDER BY n.send_time DESC, n.id DESC
+    </select>
+
+    <select id="countTodayByParcelAndType" resultType="int">
+        SELECT COUNT(*)
+        FROM notify_record
+        WHERE parcel_id = #{parcelId}
+          AND notify_type = #{notifyType}
+          AND DATE(send_time) = CURDATE()
+    </select>
+
+    <select id="countToday" resultType="int">
+        SELECT COUNT(*)
+        FROM notify_record
+        WHERE DATE(send_time) = CURDATE()
+        <if test="stationId != null">
+            AND station_id = #{stationId}
+        </if>
+    </select>
+
+</mapper>

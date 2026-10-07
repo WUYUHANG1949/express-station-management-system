@@ -236,8 +236,8 @@ function buildPickupCodeHtml(parcel) {
   const code = parcel.pickupCode || '--------'
   return `
     <div style="text-align:center;">
-      <div style="font-size:13px;color:#909399;margin-bottom:6px;">取件码（请告知客户）</div>
-      <div style="font-size:40px;font-weight:700;letter-spacing:8px;color:#2563eb;font-family:Consolas,Monaco,monospace;line-height:1.3;">
+      <div style="font-size:13px;color:var(--es-text-3);margin-bottom:6px;">取件码（请告知客户）</div>
+      <div style="font-size:40px;font-weight:700;letter-spacing:8px;color:var(--es-primary);font-family:Consolas,Monaco,monospace;line-height:1.3;">
         ${code}
       </div>
       <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #dcdfe6;text-align:left;font-size:13px;color:#606266;line-height:1.9;">
@@ -344,14 +344,14 @@ onMounted(async () => {
 .form-tip {
   width: 100%;
   font-size: 12px;
-  color: #909399;
+  color: var(--es-text-3);
   line-height: 1.6;
   margin-top: 2px;
 }
 
 :deep(.el-divider__text) {
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 </style>
 

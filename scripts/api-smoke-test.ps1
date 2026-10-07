@@ -252,6 +252,85 @@ Show "12.3 delete shelf" @{ code = $shd.code; message = $shd.message }
 $std = Invoke-RestMethod -Uri "$base/stations/$($sc.data)" -Method Delete -Headers @{ Authorization = "Bearer $adminToken" } -TimeoutSec 30
 Show "12.4 delete station" @{ code = $std.code; message = $std.message }
 
+Log ""
+Log "==================== 13. V1.1 NOTIFICATIONS ===================="
+$np = Get-Api "$base/notifications/page?pageNum=1&pageSize=5" $adminToken
+Show "13.1 notify page" @{ code = $np.code; total = $np.data.total; type = $np.data.list[0].notifyTypeName; channel = $np.data.list[0].channelName; status = $np.data.list[0].sendStatusName; receiverName = $np.data.list[0].receiverName; stationName = $np.data.list[0].stationName }
+
+$nf = Get-Api "$base/notifications/page?pageNum=1&pageSize=5&sendStatus=FAILED" $adminToken
+Show "13.2 notify failed only" @{ total = $nf.data.total; failReason = $nf.data.list[0].failReason }
+
+$ns = Post-Json "$base/notifications" @{ parcelId = 7; notifyType = 'OVERDUE'; channel = 'SMS' } $adminToken
+Show "13.3 send notify (auto content)" @{ code = $ns.code; message = $ns.message; type = $ns.data.notifyTypeName; sendStatus = $ns.data.sendStatusName; content = $ns.data.content }
+
+$nb = Post-Json "$base/notifications/batch-overdue?stationId=1&minDays=1" @{} $adminToken
+Show "13.4 batch overdue" @{ code = $nb.code; message = $nb.message; sent = $nb.data }
+
+$nb2 = Post-Json "$base/notifications/batch-overdue?stationId=1&minDays=1" @{} $adminToken
+Show "13.5 batch overdue again (same-day dedup expected)" @{ code = $nb2.code; message = $nb2.message }
+
+$badNotify = Post-Json "$base/notifications" @{ parcelId = 7; notifyType = 'NOT_A_TYPE' } $adminToken
+Show "13.6 invalid notify type" @{ code = $badNotify.code; message = $badNotify.message }
+
+Log ""
+Log "==================== 14. V1.1 OVERDUE ===================="
+$od = Get-Api "$base/parcels/overdue/page?pageNum=1&pageSize=10&minDays=1" $adminToken
+Show "14.1 overdue page" @{ code = $od.code; total = $od.data.total; waybillNo = $od.data.list[0].waybillNo; storageDays = $od.data.list[0].storageDays; overdueDayCount = $od.data.list[0].overdueDayCount; fee = $od.data.list[0].overdueFee; stationName = $od.data.list[0].stationName }
+
+$od3 = Get-Api "$base/parcels/overdue/page?pageNum=1&pageSize=10&minDays=3" $adminToken
+Show "14.2 overdue >= 3 days" @{ total = $od3.data.total; waybills = ($od3.data.list | ForEach-Object { $_.waybillNo }) -join ',' }
+
+$odc = Get-Api "$base/parcels/overdue/count" $adminToken
+Show "14.3 overdue count" @{ code = $odc.code; count = $odc.data }
+
+Log ""
+Log "==================== 15. V1.1 SHELF MAP ===================="
+$map = Get-Api "$base/shelves/map?stationId=1" $adminToken
+$occupied = $map.data | Where-Object { $_.parcels.Count -gt 0 }
+Show "15.1 shelf map" @{ code = $map.code; shelfCount = $map.data.Count; levels = (($map.data | Group-Object level | ForEach-Object { $_.Name + '=' + $_.Count }) -join ','); sample = $occupied[0].shelfCode + ' used=' + $occupied[0].usedCount + ' parcels=' + $occupied[0].parcels.Count + ' rate=' + $occupied[0].rate }
+
+$rc = Invoke-RestMethod -Uri "$base/shelves/recalculate?stationId=1" -Method Put -Headers @{ Authorization = "Bearer $adminToken" } -TimeoutSec 30
+Show "15.2 recalculate shelves" @{ code = $rc.code; message = $rc.message }
+
+Log ""
+Log "==================== 16. V1.1 DATA SCREEN ===================="
+$sc = Get-Api "$base/stats/screen" $adminToken
+Show "16.1 screen (admin)" @{ code = $sc.code; todayIn = $sc.data.overview.todayInCount; inStore = $sc.data.overview.inStoreCount; shelfRate = $sc.data.overview.shelfUsage.rate; trendDays = $sc.data.trend.dates.Count; company = $sc.data.company.Count; recentIn = $sc.data.recentInStore.Count; recentPickup = $sc.data.recentPickup.Count; topOverdue = $sc.data.topOverdue.Count; notifyToday = $sc.data.notifyToday; stationRank = $sc.data.stationRank.Count }
+
+$sc2 = Get-Api "$base/stats/screen" $staffToken
+Show "16.2 screen (staff, stationRank must be empty)" @{ code = $sc2.code; stationRank = $sc2.data.stationRank.Count; inStore = $sc2.data.overview.inStoreCount }
+
+Log ""
+Log "==================== 17. V1.1 PUBLIC QUERY (NO AUTH) ===================="
+$pub = Get-Api "$base/public/pickup-query?phone=13900000001" $null
+Show "17.1 public query without token" @{ code = $pub.code; message = $pub.message; count = $pub.data.Count; waybillNo = $pub.data[0].waybillNo; pickupCode = $pub.data[0].pickupCode; statusName = $pub.data[0].statusName; stationName = $pub.data[0].stationName }
+
+$leak = $pub.data[0]
+Show "17.2 internal fields must be hidden" @{ stationId = $leak.stationId; shelfId = $leak.shelfId; operatorId = $leak.operatorId; freight = $leak.freight; remark = $leak.remark }
+
+$pubBad = Get-Api "$base/public/pickup-query?phone=123" $null
+Show "17.3 public query bad phone" @{ code = $pubBad.code; message = $pubBad.message }
+
+$pubNone = Get-Api "$base/public/pickup-query?phone=13700000000" $null
+Show "17.4 public query unknown phone" @{ code = $pubNone.code; count = $pubNone.data.Count }
+
+Check-Code "$base/parcels/page" $null "17.5 protected endpoint still requires auth" 401
+
+Log ""
+Log "==================== 18. V1.1 VALIDATION ===================="
+$wbV = 'SF' + (Get-Random -Minimum 100000000000 -Maximum 999999999999)
+$pV = Post-Template "$base/parcels/in-store" 'body-instore.json' $adminToken @{ '__WB__' = $wbV }
+Show "18.1 in-store for validation test" @{ code = $pV.code; id = $pV.data.id; pickupCode = $pV.data.pickupCode }
+
+$badPickup = Post-Json "$base/parcels/pickup" @{ waybillNo = $wbV; pickupCode = $pV.data.pickupCode; receiverName = 'SmokeTest'; pickupType = 'DOOR' } $adminToken
+Show "18.2 invalid pickupType DOOR must be rejected" @{ code = $badPickup.code; message = $badPickup.message }
+
+$okPickup = Post-Json "$base/parcels/pickup" @{ waybillNo = $wbV; pickupCode = $pV.data.pickupCode; receiverName = 'SmokeTest'; pickupType = 'DELIVERY'; verifyType = 'ID_CARD' } $adminToken
+Show "18.3 valid pickupType DELIVERY" @{ code = $okPickup.code; message = $okPickup.message }
+
+$autoNotify = Get-Api "$base/notifications/parcel/$($pV.data.id)" $adminToken
+Show "18.4 auto notifications after in-store + pickup" @{ count = $autoNotify.data.Count; types = ($autoNotify.data | ForEach-Object { $_.notifyTypeName }) -join ' -> ' }
+
 [System.IO.File]::WriteAllLines($out, $lines, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host ""
 Write-Host "DONE -> $out"

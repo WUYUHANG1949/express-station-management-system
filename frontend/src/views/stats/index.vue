@@ -20,14 +20,13 @@
 
     <!-- ==================== 概览指标 ==================== -->
     <el-row :gutter="12" class="mb-12">
-      <el-col v-for="item in statCards" :key="item.label" :xs="12" :sm="8" :md="6" class="stat-col">
+      <el-col v-for="item in statCards" :key="item.label" :xs="12" :sm="8" :md="6" :lg="6" :xl="3" class="stat-col">
         <StatCard
           :label="item.label"
           :value="item.value"
           :unit="item.unit"
           :icon="item.icon"
-          :color="item.color"
-          :bg-color="item.bgColor"
+          :preset="item.preset"
           :sub-text="item.subText"
         />
       </el-col>
@@ -181,22 +180,21 @@ const statCards = computed(() => {
   const o = overview.value || {}
   const shelf = o.shelfUsage || {}
   return [
-    { label: '今日入库', value: formatNumber(o.todayInCount), unit: '件', icon: 'Download', color: '#2563eb', bgColor: '#ecf5ff', subText: '今日登记到件' },
-    { label: '今日取件', value: formatNumber(o.todayPickupCount), unit: '件', icon: 'Finished', color: '#67c23a', bgColor: '#f0f9eb', subText: '今日取件核销' },
-    { label: '今日寄件', value: formatNumber(o.todayShipCount), unit: '件', icon: 'Van', color: '#0ea5e9', bgColor: '#e8f7ff', subText: '今日受理寄件' },
-    { label: '在库快件', value: formatNumber(o.inStoreCount), unit: '件', icon: 'Box', color: '#409eff', bgColor: '#ecf5ff', subText: '当前在库待取' },
-    { label: '逾期件', value: formatNumber(o.overdueCount), unit: '件', icon: 'AlarmClock', color: '#e6a23c', bgColor: '#fdf6ec', subText: '超过免费保管期' },
-    { label: '异常件', value: formatNumber(o.exceptionCount), unit: '件', icon: 'Warning', color: '#f56c6c', bgColor: '#fef0f0', subText: '待处理与处理中' },
+    { label: '今日入库', value: formatNumber(o.todayInCount), unit: '件', icon: 'Download', preset: 'teal', subText: '今日登记到件' },
+    { label: '今日取件', value: formatNumber(o.todayPickupCount), unit: '件', icon: 'Finished', preset: 'blue', subText: '今日取件核销' },
+    { label: '今日寄件', value: formatNumber(o.todayShipCount), unit: '件', icon: 'Van', preset: 'purple', subText: '今日受理寄件' },
+    { label: '在库快件', value: formatNumber(o.inStoreCount), unit: '件', icon: 'Box', preset: 'blue', subText: '当前在库待取' },
+    { label: '逾期件', value: formatNumber(o.overdueCount), unit: '件', icon: 'AlarmClock', preset: 'orange', subText: '超过免费保管期' },
+    { label: '异常件', value: formatNumber(o.exceptionCount), unit: '件', icon: 'Warning', preset: 'red', subText: '待处理与处理中' },
     {
       label: '货位使用率',
       value: formatPercent(shelf.rate),
       unit: '',
       icon: 'Grid',
-      color: '#7c3aed',
-      bgColor: '#f3eeff',
+      preset: 'teal',
       subText: `已用 ${formatNumber(shelf.used)} / 共 ${formatNumber(shelf.total)}`
     },
-    { label: '累计快件', value: formatNumber(o.totalParcelCount), unit: '件', icon: 'DataLine', color: '#909399', bgColor: '#f4f4f5', subText: '历史累计登记量' }
+    { label: '累计快件', value: formatNumber(o.totalParcelCount), unit: '件', icon: 'DataLine', preset: 'gray', subText: '历史累计登记量' }
   ]
 })
 
@@ -235,9 +233,9 @@ const trendOption = computed(() => {
         smooth: true,
         symbolSize: 6,
         data: t.inCounts || [],
-        itemStyle: { color: '#2563eb' },
+        itemStyle: { color: '#16d3c8' },
         lineStyle: { width: 3 },
-        areaStyle: { color: 'rgba(37,99,235,0.18)' }
+        areaStyle: { color: 'rgba(22,211,200,0.18)' }
       },
       {
         name: '取件量',
@@ -245,9 +243,9 @@ const trendOption = computed(() => {
         smooth: true,
         symbolSize: 6,
         data: t.pickupCounts || [],
-        itemStyle: { color: '#67c23a' },
+        itemStyle: { color: '#1a6dff' },
         lineStyle: { width: 3 },
-        areaStyle: { color: 'rgba(103,194,58,0.18)' }
+        areaStyle: { color: 'rgba(26,109,255,0.18)' }
       }
     ]
   }
@@ -305,14 +303,14 @@ const rankOption = computed(() => {
         name: '收件量',
         type: 'bar',
         barMaxWidth: 28,
-        itemStyle: { color: '#2563eb', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: '#16d3c8', borderRadius: [4, 4, 0, 0] },
         data: rankList.value.map((item) => item.parcelCount || 0)
       },
       {
         name: '取件量',
         type: 'bar',
         barMaxWidth: 28,
-        itemStyle: { color: '#67c23a', borderRadius: [4, 4, 0, 0] },
+        itemStyle: { color: '#1a6dff', borderRadius: [4, 4, 0, 0] },
         data: rankList.value.map((item) => item.pickupCount || 0)
       }
     ]
@@ -441,6 +439,6 @@ onMounted(async () => {
 .chart-card__title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 </style>

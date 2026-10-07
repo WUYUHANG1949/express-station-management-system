@@ -68,8 +68,20 @@ VALUES
 (59, 50, 'system:station:edit', '编辑驿站', 'BUTTON', NULL, NULL, 9, 1),
 (60, 50, 'system:shelf:list', '货位管理', 'MENU', '/system/shelf', 'Grid', 10, 1),
 (61, 50, 'system:shelf:edit', '编辑货位', 'BUTTON', NULL, NULL, 11, 1),
+-- 逾期催取（挂在快件管理下）
+(19, 10, 'parcel:overdue', '逾期催取', 'MENU', '/parcel/overdue', 'AlarmClock', 9, 1),
+(102, 10, 'parcel:print', '打印取件小票', 'BUTTON', NULL, NULL, 10, 1),
+-- 通知管理
+(80, 0, 'notify', '通知管理', 'MENU', '/notify', 'Bell', 8, 1),
+(81, 80, 'notify:list', '通知记录', 'MENU', '/notify/list', 'ChatDotSquare', 1, 1),
+(82, 80, 'notify:send', '发送通知', 'BUTTON', NULL, NULL, 2, 1),
+-- 货位地图
+(90, 0, 'shelfmap', '货位地图', 'MENU', '/shelf-map', 'MapLocation', 9, 1),
+(91, 90, 'shelfmap:view', '查看货位地图', 'BUTTON', NULL, NULL, 1, 1),
+-- 数据大屏
+(110, 0, 'screen', '数据大屏', 'MENU', '/screen', 'Monitor', 10, 1),
 -- 个人中心
-(70, 0, 'profile', '个人中心', 'MENU', '/profile', 'UserFilled', 7, 1);
+(70, 0, 'profile', '个人中心', 'MENU', '/profile', 'UserFilled', 11, 1);
 
 -- ----------------------------------------------------------------------------
 -- 角色-权限：ADMIN 全部权限
@@ -78,14 +90,17 @@ DELETE FROM `sys_role_permission`;
 INSERT INTO `sys_role_permission` (`role_id`, `perm_id`)
 SELECT 1, `id` FROM `sys_permission`;
 
--- STAFF：首页 + 快件 + 寄件 + 异常件 + 统计 + 个人中心（不含系统管理）
+-- STAFF：首页 + 快件 + 寄件 + 异常件 + 统计 + 通知 + 货位地图 + 大屏 + 个人中心（不含系统管理）
 INSERT INTO `sys_role_permission` (`role_id`, `perm_id`)
 SELECT 2, `id`
 FROM `sys_permission`
-WHERE `id` IN (1, 10, 11, 12, 13, 14, 15, 17, 18,
+WHERE `id` IN (1, 10, 11, 12, 13, 14, 15, 17, 18, 19, 102,
                20, 21, 22, 23, 25,
                30, 31, 32, 33,
                40, 41,
+               80, 81, 82,
+               90, 91,
+               110,
                70);
 
 -- USER：首页 + 我的快件 + 个人中心
@@ -231,6 +246,63 @@ INSERT INTO `exception_record` (`parcel_id`, `waybill_no`, `exception_type`, `de
 VALUES (14, 'EMS8899001122340', 'DAMAGED', '到件外包装破损，内件疑似受损，已拍照留证', 'HANDLING', 2, '李思远', '已联系发件网点协商理赔', 1, DATE_SUB(NOW(), INTERVAL 6 DAY), DATE_SUB(NOW(), INTERVAL 5 DAY)),
        (23, 'SF2234567890210', 'ADDRESS_ERROR', '收件地址只写到小区，联系电话停机', 'PENDING', NULL, NULL, NULL, 2, DATE_SUB(NOW(), INTERVAL 8 DAY), NULL),
        (15, 'JT5566778899010', 'REFUSED', '收件人当场拒收，要求原路退回', 'RESOLVED', 2, '李思远', '已办理退回，运单状态置为已退回', 1, DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_SUB(NOW(), INTERVAL 9 DAY));
+
+-- ----------------------------------------------------------------------------
+-- 通知记录（与快件状态保持一致，由 parcel 表推导生成）
+-- ----------------------------------------------------------------------------
+DELETE FROM `notify_record`;
+
+-- 1) 到件通知：仍在驿站货架上的快件（在库待取 / 派送中 / 异常件）
+INSERT INTO `notify_record` (`parcel_id`, `waybill_no`, `pickup_code`, `notify_type`, `channel`,
+                             `receiver_phone`, `content`, `send_status`, `station_id`,
+                             `operator_id`, `operator_name`, `send_time`)
+SELECT p.`id`, p.`waybill_no`, p.`pickup_code`, 'IN_STORE', 'SMS', p.`receiver_phone`,
+       CONCAT('【快件驿站】您的快件（', p.`express_company`, ' ', p.`waybill_no`, '）已到达',
+              IFNULL(st.`station_name`, '本驿站'), '，取件码 ', p.`pickup_code`, '，请凭取件码及时取件。'),
+       'SUCCESS', p.`station_id`, NULL, NULL, p.`in_time`
+FROM `parcel` p
+         LEFT JOIN `station` st ON st.id = p.`station_id`
+WHERE p.`deleted` = 0
+  AND p.`status` IN ('IN_STORE', 'DELIVERING', 'EXCEPTION');
+
+-- 2) 逾期催取通知：已超过免费保管期的在库快件
+INSERT INTO `notify_record` (`parcel_id`, `waybill_no`, `pickup_code`, `notify_type`, `channel`,
+                             `receiver_phone`, `content`, `send_status`, `station_id`,
+                             `operator_id`, `operator_name`, `send_time`)
+SELECT p.`id`, p.`waybill_no`, p.`pickup_code`, 'OVERDUE', 'SMS', p.`receiver_phone`,
+       CONCAT('【快件驿站】您的快件（', p.`waybill_no`, '）已超过免费保管期 ',
+              GREATEST(DATEDIFF(NOW(), p.`in_time`) - p.`overdue_days`, 1),
+              ' 天，逾期保管费 2 元/天，请尽快凭取件码 ', p.`pickup_code`, ' 取件。'),
+       'SUCCESS', p.`station_id`, 2, '李思远', DATE_ADD(p.`in_time`, INTERVAL p.`overdue_days` + 1 DAY)
+FROM `parcel` p
+WHERE p.`deleted` = 0
+  AND p.`status` = 'IN_STORE'
+  AND p.`in_time` < DATE_SUB(NOW(), INTERVAL p.`overdue_days` DAY);
+
+-- 3) 取件确认通知：已完成核销的快件
+INSERT INTO `notify_record` (`parcel_id`, `waybill_no`, `pickup_code`, `notify_type`, `channel`,
+                             `receiver_phone`, `content`, `send_status`, `station_id`,
+                             `operator_id`, `operator_name`, `send_time`)
+SELECT p.`id`, p.`waybill_no`, p.`pickup_code`, 'PICKUP_DONE', 'APP', p.`receiver_phone`,
+       CONCAT('【快件驿站】您的快件（', p.`waybill_no`, '）已于 ',
+              DATE_FORMAT(p.`pickup_time`, '%Y-%m-%d %H:%i'), ' 完成取件，感谢使用。'),
+       'SUCCESS', p.`station_id`, p.`operator_id`,
+       IF(p.`operator_id` = 2, '李思远', '陈欣怡'), p.`pickup_time`
+FROM `parcel` p
+WHERE p.`deleted` = 0
+  AND p.`status` = 'PICKED_UP'
+  AND p.`pickup_time` IS NOT NULL;
+
+-- 4) 两条发送失败的示例记录，用于演示失败重发与异常提示
+INSERT INTO `notify_record` (`parcel_id`, `waybill_no`, `pickup_code`, `notify_type`, `channel`,
+                             `receiver_phone`, `content`, `send_status`, `fail_reason`, `station_id`,
+                             `operator_id`, `operator_name`, `send_time`)
+VALUES (8, 'JT5566778899001', '10045678', 'OVERDUE', 'SMS', '13900000008',
+        '【快件驿站】您的快件（JT5566778899001）已超过免费保管期 3 天，请尽快取件。',
+        'FAILED', '运营商返回：空号或已停机', 1, 2, '李思远', DATE_SUB(NOW(), INTERVAL 2 DAY)),
+       (23, 'SF2234567890210', '20047891', 'EXCEPTION', 'SMS', '13900000023',
+        '【快件驿站】您的快件因地址不详暂时无法派送，请联系驿站 025-88880002。',
+        'FAILED', '运营商返回：号码状态异常', 2, 3, '陈欣怡', DATE_SUB(NOW(), INTERVAL 7 DAY));
 
 -- ----------------------------------------------------------------------------
 -- 按当前仍占用货位的快件重算货位占用，保证 shelf.used_count 与 parcel 表一致

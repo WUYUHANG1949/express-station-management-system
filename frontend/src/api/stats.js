@@ -46,3 +46,17 @@ export function getStationRank() {
     method: 'get'
   })
 }
+
+/* ==================== v1.1 新增 ==================== */
+
+/**
+ * 数据大屏聚合数据：GET /api/stats/screen?stationId=
+ * 一次请求返回概览、14 日趋势、公司分布、类型分布、最近出入库、逾期 TOP、今日通知量
+ */
+export function getScreenData(stationId) {
+  return request({
+    url: '/stats/screen',
+    method: 'get',
+    params: { stationId }
+  })
+}

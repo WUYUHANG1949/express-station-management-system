@@ -4,12 +4,17 @@
 | -------- | ------------------------------ |
 | 文档名称 | 数据库设计说明书 |
 | 作者 | 吴宇航 |
-| 版本 | V1.0 |
+| 版本 | V1.1 |
 | 数据库管理系统 | MySQL 8.0 |
 | 数据库名 | `express_station` |
 | 字符集 / 排序规则 | `utf8mb4` / `utf8mb4_general_ci` |
 | 存储引擎 | InnoDB |
-| 表数量 | 12 张（5 张系统权限表 + 7 张业务表） |
+| 表数量 | 13 张（5 张系统权限表 + 8 张业务表），共 146 个字段 |
+
+> **V1.1 变更说明**：新增第 13 张表 `notify_record`（取件通知记录表，14 个字段、5 个普通索引），
+> 业务表由 7 张增加到 8 张，字段总数由 132 个增加到 146 个；初始化权限由 35 条增加到 43 条；
+> 并在第 5 章补充「货位占用统一口径」这一关键设计说明。全文表述与 `sql/01_schema.sql`、
+> `sql/02_data.sql`、`backend/src/main/java/**` 源码逐条核对。
 
 ---
 
@@ -17,8 +22,8 @@
 
 ### 1.1 设计原则
 
-1. **权限与业务分离**：将与身份认证、授权相关的表统一以 `sys_` 前缀命名，集中为 5 张表；与快件收发业务相关的表单独组织为 7 张表。两类表在逻辑上通过 `user_id`、`operator_id`、`station_id` 等字段关联，便于权限模块独立演进。
-2. **满足第三范式并适度冗余**：主数据与关联数据通过主键关联，消除传递依赖。在查询频繁且业务语义明确的场景下允许冗余，例如 `parcel_trace` 冗余 `waybill_no` 与 `operator_name`，`pickup_record` 冗余 `waybill_no`、`pickup_code`、`operator_name`，以减少多表连接、提升查询效率并固化业务发生时的现场信息。
+1. **权限与业务分离**：将与身份认证、授权相关的表统一以 `sys_` 前缀命名，集中为 5 张表；与快件收发业务相关的表单独组织为 8 张表。两类表在逻辑上通过 `user_id`、`operator_id`、`station_id` 等字段关联，便于权限模块独立演进。
+2. **满足第三范式并适度冗余**：主数据与关联数据通过主键关联，消除传递依赖。在查询频繁且业务语义明确的场景下允许冗余，例如 `parcel_trace` 冗余 `waybill_no` 与 `operator_name`，`pickup_record` 冗余 `waybill_no`、`pickup_code`、`operator_name`，`notify_record` 冗余 `waybill_no`、`pickup_code`、`operator_name`，以减少多表连接、提升查询效率并固化业务发生时的现场信息。
 3. **主键统一策略**：所有表使用 `BIGINT` 类型的自增主键 `id`，与后端 Java 的 `Long` 类型一一对应；业务编号（如 `waybill_no`、`order_no`、`station_code`、`shelf_code`）通过唯一索引单独约束，不用作物理主键，保证业务编号变化时不影响关联关系。
 4. **状态使用可读枚举**：业务状态统一使用 `VARCHAR` 存储大写字符串枚举值（如 `IN_STORE`、`PICKED_UP`、`PENDING`），不使用数字编码，使数据库记录具备自解释能力，便于直接排查问题与导出报表。
 5. **逻辑删除优先**：对需要保留历史痕迹的核心业务表（`sys_user`、`parcel`、`ship_order`）设置 `deleted` 字段，删除操作仅置标记位，不进行物理删除。
@@ -60,11 +65,11 @@
 
 ### 2.1 实体识别
 
-依据需求分析，系统抽象出 12 个实体，并划分为两个实体群：
+依据需求分析，系统抽象出 13 个实体，并划分为两个实体群：
 
 **系统权限实体群**：用户（`sys_user`）、角色（`sys_role`）、用户角色关联（`sys_user_role`）、权限（`sys_permission`）、角色权限关联（`sys_role_permission`）。
 
-**业务实体群**：驿站（`station`）、货架库位（`shelf`）、快件（`parcel`）、快件轨迹（`parcel_trace`）、取件记录（`pickup_record`）、寄件单（`ship_order`）、异常件记录（`exception_record`）。
+**业务实体群**：驿站（`station`）、货架库位（`shelf`）、快件（`parcel`）、快件轨迹（`parcel_trace`）、取件记录（`pickup_record`）、寄件单（`ship_order`）、异常件记录（`exception_record`）、取件通知记录（`notify_record`）。
 
 ### 2.2 实体—联系图（ER 图）
 
@@ -82,13 +87,16 @@ erDiagram
     station ||--o{ exception_record : "登记异常"
     station ||--o{ parcel_trace : "产生轨迹"
     station ||--o{ pickup_record : "办理取件"
+    station ||--o{ notify_record : "发送通知"
     shelf ||--o{ parcel : "存放"
     sys_user ||--o{ parcel : "入库操作"
     sys_user ||--o{ ship_order : "受理"
     sys_user ||--o{ exception_record : "处理"
+    sys_user ||--o{ notify_record : "发送通知"
     parcel ||--o{ parcel_trace : "拥有轨迹"
     parcel ||--|| pickup_record : "对应取件"
     parcel ||--o{ exception_record : "登记异常"
+    parcel ||--o{ notify_record : "产生通知"
 
     sys_user {
         BIGINT id PK "用户主键"
@@ -216,6 +224,23 @@ erDiagram
         VARCHAR handle_result "处理结果"
         DATETIME handle_time "处理完成时间"
     }
+
+    notify_record {
+        BIGINT id PK "通知记录主键"
+        BIGINT parcel_id FK "快件ID"
+        VARCHAR waybill_no "运单号冗余"
+        VARCHAR pickup_code "取件码冗余"
+        VARCHAR notify_type "通知类型"
+        VARCHAR channel "通知渠道"
+        VARCHAR receiver_phone "接收手机号"
+        VARCHAR content "通知内容"
+        VARCHAR send_status "发送结果"
+        VARCHAR fail_reason "失败原因"
+        BIGINT station_id FK "所属驿站"
+        BIGINT operator_id FK "操作人ID"
+        VARCHAR operator_name "操作人姓名冗余"
+        DATETIME send_time "发送时间"
+    }
 ```
 
 ### 2.3 联系类型说明
@@ -233,7 +258,10 @@ erDiagram
 | 快件—轨迹 | `parcel` → `parcel_trace` | 一对多 | 一票快件在生命周期内产生多条操作轨迹 |
 | 快件—取件记录 | `parcel` → `pickup_record` | 一对一 | 成功核销产生且仅产生一条取件记录 |
 | 快件—异常记录 | `parcel` → `exception_record` | 一对多 | 一票快件可能先后出现多次异常情况 |
+| 快件—通知记录 | `parcel` → `notify_record` | 一对多 | 一票快件在到件、催取、取件确认等环节产生多条通知记录，`parcel_id` 为多端外键 |
+| 驿站—通知记录 | `station` → `notify_record` | 一对多 | 通知按驿站归属统计与筛选，员工只能查看本驿站的通知记录 |
 | 用户—业务操作 | `sys_user` → `parcel` / `ship_order` / `exception_record` | 一对多 | 通过 `operator_id`、`handler_id` 记录操作人 |
+| 用户—通知发送 | `sys_user` → `notify_record` | 一对多 | 手动发送与批量催取记录 `operator_id`、`operator_name`；系统自动发送时为 `NULL` |
 
 ### 2.4 参照完整性的实现方式
 
@@ -309,7 +337,9 @@ erDiagram
 | status | TINYINT | — | NOT NULL | 1 | | 状态：1 启用 0 停用 |
 | create_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP | | 创建时间 |
 
-初始化权限共 35 条（其中菜单类 12 条、按钮类 23 条），按顶级菜单组织为：`dashboard` 首页概览；`parcel` 快件管理（含 `parcel:list`、`parcel:in`、`parcel:pickup` 三个菜单与 `parcel:deliver`、`parcel:edit`、`parcel:delete`、`parcel:export`、`parcel:trace` 五个按钮）；`ship` 寄件管理（含 `ship:list` 菜单与 `ship:add`、`ship:edit`、`ship:delete`、`ship:status` 四个按钮）；`exception` 异常件管理（含 `exception:list` 菜单与 `exception:add`、`exception:handle` 两个按钮）；`stats` 数据统计（含 `stats:view` 按钮）；`system` 系统管理（含 `system:user:list`、`system:role:list`、`system:station:list`、`system:shelf:list` 四个菜单与对应按钮）；`profile` 个人中心。
+初始化权限共 43 条（其中菜单类 21 条、按钮类 22 条），按顶级菜单组织为：`dashboard` 首页概览；`parcel` 快件管理（含 `parcel:list`、`parcel:in`、`parcel:pickup`、`parcel:overdue` 四个菜单与 `parcel:deliver`、`parcel:edit`、`parcel:delete`、`parcel:export`、`parcel:trace`、`parcel:print` 六个按钮）；`ship` 寄件管理（含 `ship:list` 菜单与 `ship:add`、`ship:edit`、`ship:delete`、`ship:status` 四个按钮）；`exception` 异常件管理（含 `exception:list` 菜单与 `exception:add`、`exception:handle` 两个按钮）；`stats` 数据统计（含 `stats:view` 按钮）；`system` 系统管理（含 `system:user:list`、`system:role:list`、`system:station:list`、`system:shelf:list` 四个菜单与对应按钮）；`notify` 通知管理（含 `notify:list` 菜单与 `notify:send` 按钮）；`shelfmap` 货位地图（含 `shelfmap:view` 按钮）；`screen` 数据大屏；`profile` 个人中心。
+
+v1.1 新增的 8 条权限为：`19 / parcel:overdue` 逾期催取（MENU，挂在 `10 parcel` 下，`path = /parcel/overdue`，`icon = AlarmClock`）、`102 / parcel:print` 打印取件小票（BUTTON，挂在快件管理下）、`80 / notify` 通知管理（MENU，`path = /notify`，`icon = Bell`）、`81 / notify:list` 通知记录（MENU，`path = /notify/list`）、`82 / notify:send` 发送通知（BUTTON）、`90 / shelfmap` 货位地图（MENU，`path = /shelf-map`，`icon = MapLocation`）、`91 / shelfmap:view` 查看货位地图（BUTTON）、`110 / screen` 数据大屏（MENU，`path = /screen`，`icon = Monitor`）。
 
 ### 3.5 角色权限关联表 `sys_role_permission`
 
@@ -319,7 +349,9 @@ erDiagram
 | role_id | BIGINT | — | NOT NULL | — | UK `uk_role_perm` 联合列 | 角色ID |
 | perm_id | BIGINT | — | NOT NULL | — | UK `uk_role_perm` 联合列；IDX `idx_rp_perm` | 权限ID |
 
-权限分配初始化规则：`ADMIN`（role_id = 1）拥有全部权限；`STAFF`（role_id = 2）拥有除系统管理与删除快件、删除寄件单之外的全部业务权限，具体权限 id 集合为 1、10、11、12、13、14、15、17、18、20、21、22、23、25、30、31、32、33、40、41、70；`USER`（role_id = 3）仅拥有首页概览、快件查询与个人中心三项权限，对应权限 id 为 1、11、70。
+权限分配初始化规则：`ADMIN`（role_id = 1）拥有全部 43 条权限；`STAFF`（role_id = 2）拥有除系统管理与删除快件、删除寄件单之外的全部业务权限，共 **29** 条，具体权限 id 集合为 1、10、11、12、13、14、15、17、18、19、102、20、21、22、23、25、30、31、32、33、40、41、80、81、82、90、91、110、70；`USER`（role_id = 3）仅拥有首页概览、快件查询与个人中心三项权限，对应权限 id 为 1、11、70。
+
+v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为 `parcel:overdue`（19）、`parcel:print`（102）、`notify`（80）、`notify:list`（81）、`notify:send`（82）、`shelfmap`（90）、`shelfmap:view`（91）、`screen`（110）。
 
 ### 3.6 驿站表 `station`
 
@@ -464,7 +496,46 @@ erDiagram
 | create_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP | | 登记时间 |
 | handle_time | DATETIME | — | NULL | NULL | | 处理完成时间 |
 
-### 3.13 表清单汇总
+### 3.13 取件通知记录表 `notify_record`（v1.1 新增）
+
+驿站到件后需要通知收件人取件，逾期后需要催取。本表记录每一条通知的类型、渠道、内容、发送结果与操作人，既是业务凭证也是纠纷追溯依据。
+
+| 字段名 | 数据类型 | 长度 | 是否为空 | 默认值 | 键 | 说明 |
+| ------ | -------- | ---- | -------- | ------ | -- | ---- |
+| id | BIGINT | — | NOT NULL | AUTO_INCREMENT | PK | 通知记录主键 |
+| parcel_id | BIGINT | — | NOT NULL | — | IDX `idx_notify_parcel` | 快件ID |
+| waybill_no | VARCHAR | 40 | NOT NULL | — | IDX `idx_notify_waybill` | 运单号 |
+| pickup_code | VARCHAR | 10 | NULL | NULL | | 取件码（便于直接告知客户） |
+| notify_type | VARCHAR | 20 | NOT NULL | — | IDX `idx_notify_type` | 通知类型：IN_STORE 到件通知 OVERDUE 逾期催取 PICKUP_DONE 取件确认 EXCEPTION 异常通知 |
+| channel | VARCHAR | 20 | NOT NULL | 'SMS' | | 通知渠道：SMS 短信 APP 站内通知 PHONE 电话 |
+| receiver_phone | VARCHAR | 20 | NOT NULL | — | IDX `idx_notify_phone` | 接收手机号 |
+| content | VARCHAR | 500 | NOT NULL | — | | 通知内容 |
+| send_status | VARCHAR | 20 | NOT NULL | 'SUCCESS' | | 发送结果：SUCCESS 成功 FAILED 失败 |
+| fail_reason | VARCHAR | 255 | NULL | NULL | | 失败原因 |
+| station_id | BIGINT | — | NULL | NULL | | 所属驿站 |
+| operator_id | BIGINT | — | NULL | NULL | | 操作人ID（自动发送为 NULL） |
+| operator_name | VARCHAR | 50 | NULL | NULL | | 操作人姓名 |
+| send_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP | IDX `idx_notify_time` | 发送时间 |
+
+本表共建立 5 个普通索引，均为服务实际查询路径而设：
+
+| 索引名 | 索引列 | 设计理由 |
+| ------ | ------ | -------- |
+| `idx_notify_parcel` | `parcel_id` | 快件详情页与核销页需要展示「该快件发过哪些通知」，按快件定位是最高频查询 |
+| `idx_notify_waybill` | `waybill_no` | 不掌握快件主键时按运单号检索通知记录，供客服核对与纠纷追溯 |
+| `idx_notify_phone` | `receiver_phone` | 支持按接收手机号检索与筛选，也是通知记录页面模糊查询的执行条件 |
+| `idx_notify_type` | `notify_type` | 支持按通知类型筛选与统计（到件量、催取量、取件确认量的对比分析） |
+| `idx_notify_time` | `send_time` | 支持发送时间区间筛选、列表默认时间倒序以及「今日发送量」「当日是否已催取」的判定 |
+
+**设计说明：**
+
+1. **为什么冗余 `waybill_no`、`pickup_code` 与 `operator_name`。** 通知记录的使用场景以「按运单号/手机号检索某条通知」为主，若每次都要连接 `parcel` 表才能按运单号查询，在通知量增长后连接代价明显；冗余后可直接单表检索。`pickup_code` 冗余的意义在于通知正文需要直接告知客户取件码，冗余后即使快件记录后续被修改或逻辑删除，通知内容仍可自解释。`operator_name` 记录发送当时的操作人姓名快照，保证通知的审计价值不因后续主数据变更（员工改名、账号禁用）而被改写。相同的冗余策略亦用于 `parcel_trace` 与 `pickup_record`。
+2. **为什么枚举字段使用字符串而不是数字。** `notify_type`、`channel`、`send_status` 均使用 `VARCHAR` 存储大写字符串枚举，与全库状态字段的口径保持一致：数据库记录自解释、便于直接排查问题、无需在代码与数据字典之间维护额外的编码映射，前端可直接用同一字面值做条件渲染。后端 `NotifyDict` 集中定义三类字典，并对写入路径做合法性校验，非法取值返回业务异常。
+3. **为什么保留发送失败的记录。** 失败记录（`send_status = FAILED`）与 `fail_reason` 是排查「客户声称没收到通知」这类纠纷的直接证据，也是后续实现失败重发与运营商对账的数据基础；若失败即丢弃，系统将无法回答「到底通知过没有、为什么没通知到」。因此本表对失败记录采取与成功记录同样的持久化策略，仅在结果字段上加以区分。当前实现中，手机号为空或不合法时由模拟网关判定为失败并写入 `fail_reason`，用于演示失败提示与重发场景。
+4. **与业务事务的关系。** 到件通知由收件登记成功后自动写入、取件确认通知由核销成功后自动写入，二者都在主业务事务内完成落库；但通知写入被 `NotifyService.autoSend` 捕获异常，通知失败不会导致入库或核销失败，避免「短信发不出去导致快件入不了库」。
+5. **去重与限流。** 批量催取前先按 `parcel_id`、`notify_type` 与当天日期统计是否已发送（依赖 `idx_notify_parcel` 与 `idx_notify_time`），同一快件当天不重复发送；单次批量操作处理上限为 50 件，避免误操作给客户造成骚扰。
+
+### 3.14 表清单汇总
 
 | 序号 | 表名 | 中文名 | 类别 | 主键 | 唯一索引 | 普通索引数 |
 | ---- | ---- | ------ | ---- | ---- | -------- | ---------- |
@@ -480,6 +551,9 @@ erDiagram
 | 10 | pickup_record | 取件记录表 | 业务 | id | — | 3 |
 | 11 | ship_order | 寄件登记表 | 业务 | id | uk_ship_order_no | 3 |
 | 12 | exception_record | 异常件记录表 | 业务 | id | — | 3 |
+| 13 | notify_record | 取件通知记录表 | 业务 | id | — | 5 |
+
+业务核心表由 7 张增加到 **8** 张，字段总数由 132 个增加到 **146** 个，索引总数由 43 个增加到 **50** 个（含 13 个主键索引、9 个唯一索引、28 个普通索引）。
 
 ---
 
@@ -533,6 +607,12 @@ erDiagram
 | exception_record | idx_exception_parcel | 普通 | parcel_id | 支持由快件反查异常记录，用于展示快件历史异常 |
 | exception_record | idx_exception_status | 普通 | handle_status | 支持按处理状态筛选待处理异常，是异常件工作台的主要查询条件 |
 | exception_record | idx_exception_type | 普通 | exception_type | 支持按异常类型统计与筛选，服务异常分析 |
+| notify_record | PRIMARY | 主键 | id | 主键索引 |
+| notify_record | idx_notify_parcel | 普通 | parcel_id | 支持由快件反查全部通知记录，也是批量催取前「当天是否已催取」去重判定的执行条件 |
+| notify_record | idx_notify_waybill | 普通 | waybill_no | 支持按运单号检索通知记录，便于客服核对「是否通知过、何时通知的」 |
+| notify_record | idx_notify_phone | 普通 | receiver_phone | 支持按接收手机号模糊检索，服务通知记录页面的筛选与按客户排查 |
+| notify_record | idx_notify_type | 普通 | notify_type | 支持按通知类型筛选与统计（到件量、催取量、取件确认量对比） |
+| notify_record | idx_notify_time | 普通 | send_time | 支持发送时间区间筛选、列表默认时间倒序，以及「今日发送量」「当日是否已催取」的日期条件 |
 
 ### 4.2 重点索引分析
 
@@ -583,7 +663,7 @@ erDiagram
 2. **固化历史现场信息**：`operator_id` 指向 `sys_user`，而用户表中的 `real_name` 可能因员工更名、账号禁用或逻辑删除而变更。轨迹的审计价值在于忠实反映"当时是谁做的操作"，因此冗余写入操作时的 `operator_name` 快照，保证历史轨迹不因后续主数据变更而被改写。
 3. **明细表自解释**：轨迹数据可能被单独导出或用于统计，冗余字段使单表数据即可读，无需依赖其他表才能理解记录含义，符合明细流水表的设计惯例。
 
-冗余带来的代价是存储空间增加与写入时多填两个字段，但轨迹表只增不改、写入频率远低于查询频率，且两个字段长度有限（`VARCHAR(40)` 与 `VARCHAR(50)`），收益明显大于成本。相同的冗余策略亦用于 `pickup_record`（`waybill_no`、`pickup_code`、`operator_name`）与 `exception_record`（`waybill_no`、`handler_name`）。
+冗余带来的代价是存储空间增加与写入时多填两个字段，但轨迹表只增不改、写入频率远低于查询频率，且两个字段长度有限（`VARCHAR(40)` 与 `VARCHAR(50)`），收益明显大于成本。相同的冗余策略亦用于 `pickup_record`（`waybill_no`、`pickup_code`、`operator_name`）、`exception_record`（`waybill_no`、`handler_name`）与 v1.1 新增的 `notify_record`（`waybill_no`、`pickup_code`、`operator_name`）。
 
 ### 5.3 为什么使用逻辑删除字段 `deleted`
 
@@ -611,8 +691,26 @@ erDiagram
 
 取件核销是系统内一致性要求最高的操作，涉及 4 张表的数据变更：`parcel`（状态、取件时间、保管费）、`pickup_record`（新增记录）、`parcel_trace`（新增轨迹）、`shelf`（释放占用）。设计上将其置于同一数据库事务中，任一步骤失败即整体回滚，避免出现"状态已改为已取件但取件记录缺失"或"记录已写但货位未释放"的脏数据。
 
-并发控制方面采用两种手段：一是通过条件更新保证状态迁移的原子性，即更新快件状态时以 `id = ? AND status = 'IN_STORE'` 作为条件，受影响行数为 0 即说明该快件已被他人核销，事务回滚并返回"该快件当前状态不可取件"；二是依赖数据库唯一约束兜底，`uk_parcel_waybill` 防止并发重复入库，`uk_user_role`、`uk_role_perm` 防止并发重复授权。货位计数更新采用基于当前值的增减操作，避免读改写模式的丢失更新。
+并发控制方面采用两种手段：一是通过条件更新保证状态迁移的原子性，即更新快件状态时以 `id` 与允许核销的状态（`IN_STORE`、`DELIVERING`）作为联合条件，受影响行数为 0 即说明该快件已被他人核销，事务回滚并返回"该快件当前状态为「xxx」，不可取件"；二是依赖数据库唯一约束兜底，`uk_parcel_waybill` 防止并发重复入库，`uk_user_role`、`uk_role_perm` 防止并发重复授权。货位计数更新采用基于当前值的增减操作，避免读改写模式的丢失更新。
 
 ### 5.6 派生字段的存储与计算边界
 
 接口契约中的 `storageDays`、`overdueFee`、`freeCount`、`statusName`、`parcelTypeName`、`stationName`、`shelfCode`、`operatorName` 等字段均为派生值，不在数据库中独立存储，由后端在查询时实时计算或通过关联查询填充。而 `parcel.storage_fee` 与 `pickup_record.storage_fee` 属于实际发生额，必须持久化存储，因为其取值取决于核销当时的计算规则与人工确认结果，事后重算可能得出不同结果，属于应当固化的业务事实。这一"过程量实时计算、结果量持久固化"的边界划清了数据库存储的职责范围。
+
+### 5.7 货位占用口径的统一（v1.1 修正）
+
+`shelf.used_count` 是典型的派生计数，其准确性取决于「什么状态下的快件算占用货位」这一判断在全系统是否只有一个口径。v1.1 之前的口径分散在多处：取件核销、删除快件、异常件退回与货位重算各自实现判断，其中删除快件与异常件退回曾出现「快件已不在货架上却继续释放货位」或「已退回件仍被计入占用」的分歧，导致 `shelf.used_count` 与实际在架快件数量不一致——表现为货位显示已满但架上无件，或格子显示空闲却实际堆放着快件。
+
+v1.1 起将口径统一为**「快件实体是否仍在货架上」**这一唯一判据，由 `ParcelService.isShelfOccupied` 单点定义：
+
+| 快件状态 | 是否占用货位 | 依据 |
+| -------- | ------------ | ---- |
+| `IN_STORE` 在库待取 | 占用 | 件在货架上 |
+| `DELIVERING` 派送中 | 占用 | 员工带件外出派送，库位仍为该件保留，未取走不算出库 |
+| `EXCEPTION` 异常件 | 占用 | 件仍留在驿站，只是被标记为异常 |
+| `PICKED_UP` 已取件 | 不占用 | 件已交付收件人 |
+| `RETURNED` 已退回 | 不占用 | 件已退回发件网点 |
+
+该判断被以下路径统一复用，避免口径再次分叉：取件核销释放货位（`shelfMapper.release`）、删除快件时按状态判断是否释放、异常件退回后不再占用、货位重算 `ShelfMapper.recalcUsedCount`（`WHERE p.deleted = 0 AND p.status IN ('IN_STORE','DELIVERING','EXCEPTION')`）、货位地图 `selectOnShelfParcels` 的过滤条件，以及初始化脚本 `02_data.sql` 末尾的占用数重算语句。前端取件核销页可操作的快件状态集合（`IN_STORE` 与 `DELIVERING`）亦与该口径保持一致，取件核销支持派送中快件当面签收。
+
+考虑到历史数据可能已不一致，系统提供 `PUT /api/shelves/recalculate` 接口按上述口径重算指定驿站（或全部驿站）的货位占用数量，用于修复异常中断造成的偏差，接口返回实际更新的货位行数。

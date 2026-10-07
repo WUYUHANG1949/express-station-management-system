@@ -532,7 +532,7 @@ onMounted(async () => {
 .scan-card {
   border-radius: 8px;
   border: none;
-  border-top: 3px solid #2563eb;
+  border-top: 3px solid var(--es-primary);
   margin-bottom: 12px;
 }
 
@@ -544,7 +544,7 @@ onMounted(async () => {
 
 .scan-card__icon {
   font-size: 34px;
-  color: #2563eb;
+  color: var(--es-primary);
   flex-shrink: 0;
 }
 
@@ -559,7 +559,7 @@ onMounted(async () => {
   gap: 6px;
   margin-top: 6px;
   font-size: 12px;
-  color: #909399;
+  color: var(--es-text-3);
 }
 
 /* ---------------- 结果区 ---------------- */
@@ -579,7 +579,7 @@ onMounted(async () => {
 .result-card__title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 
 .result-card__body {
@@ -606,13 +606,13 @@ onMounted(async () => {
 }
 
 .parcel-card:hover {
-  border-color: #2563eb;
+  border-color: var(--es-primary);
   box-shadow: 0 2px 10px rgba(37, 99, 235, 0.15);
   transform: translateY(-1px);
 }
 
 .parcel-card.is-active {
-  border-color: #2563eb;
+  border-color: var(--es-primary);
   background: #ecf5ff;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
 }
@@ -635,7 +635,7 @@ onMounted(async () => {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 3px;
-  color: #2563eb;
+  color: var(--es-primary);
 }
 
 .parcel-card__row {
@@ -648,12 +648,12 @@ onMounted(async () => {
 .parcel-card__label {
   width: 64px;
   flex-shrink: 0;
-  color: #909399;
+  color: var(--es-text-3);
 }
 
 .parcel-card__value {
   flex: 1;
-  color: #303133;
+  color: var(--es-text-1);
   word-break: break-all;
 }
 
@@ -667,7 +667,7 @@ onMounted(async () => {
 .form-tip {
   width: 100%;
   font-size: 12px;
-  color: #909399;
+  color: var(--es-text-3);
   line-height: 1.6;
 }
 

@@ -304,4 +304,37 @@ CREATE TABLE `exception_record`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='异常件记录表';
 
+-- ----------------------------------------------------------------------------
+-- 13. notify_record  取件/逾期通知记录表
+--     驿站到件后需要通知收件人取件，逾期后需要催取；本表记录每一条通知的
+--     渠道、内容、发送结果与操作人，既是业务凭证也是纠纷时的追溯依据。
+--     真实项目中 channel=SMS 会对接阿里云/腾讯云短信网关，本项目以写入记录
+--     的方式模拟发送过程，便于答辩演示且不产生费用。
+-- ----------------------------------------------------------------------------
+DROP TABLE IF EXISTS `notify_record`;
+CREATE TABLE `notify_record`
+(
+    `id`             BIGINT       NOT NULL AUTO_INCREMENT COMMENT '通知记录主键',
+    `parcel_id`      BIGINT       NOT NULL COMMENT '快件ID',
+    `waybill_no`     VARCHAR(40)  NOT NULL COMMENT '运单号',
+    `pickup_code`    VARCHAR(10)           DEFAULT NULL COMMENT '取件码（便于直接告知客户）',
+    `notify_type`    VARCHAR(20)  NOT NULL COMMENT '通知类型：IN_STORE 到件通知 OVERDUE 逾期催取 PICKUP_DONE 取件确认 EXCEPTION 异常通知',
+    `channel`        VARCHAR(20)  NOT NULL DEFAULT 'SMS' COMMENT '通知渠道：SMS 短信 APP 站内通知 PHONE 电话',
+    `receiver_phone` VARCHAR(20)  NOT NULL COMMENT '接收手机号',
+    `content`        VARCHAR(500) NOT NULL COMMENT '通知内容',
+    `send_status`    VARCHAR(20)  NOT NULL DEFAULT 'SUCCESS' COMMENT '发送结果：SUCCESS 成功 FAILED 失败',
+    `fail_reason`    VARCHAR(255)          DEFAULT NULL COMMENT '失败原因',
+    `station_id`     BIGINT                DEFAULT NULL COMMENT '所属驿站',
+    `operator_id`    BIGINT                DEFAULT NULL COMMENT '操作人ID（自动发送为 NULL）',
+    `operator_name`  VARCHAR(50)           DEFAULT NULL COMMENT '操作人姓名',
+    `send_time`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_notify_parcel` (`parcel_id`),
+    KEY `idx_notify_waybill` (`waybill_no`),
+    KEY `idx_notify_phone` (`receiver_phone`),
+    KEY `idx_notify_type` (`notify_type`),
+    KEY `idx_notify_time` (`send_time`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='取件通知记录表';
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -572,6 +572,6 @@ onMounted(() => {
 .form-tip {
   width: 100%;
   font-size: 12px;
-  color: #909399;
+  color: var(--es-text-3);
 }
 </style>

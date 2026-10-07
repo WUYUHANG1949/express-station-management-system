@@ -55,3 +55,26 @@ export function deleteShelf(id) {
     method: 'delete'
   })
 }
+
+/* ==================== v1.1 新增 ==================== */
+
+/**
+ * 货位地图：GET /api/shelves/map?stationId=
+ * 返回每个库位的容量、占用数、占用程度（EMPTY/NORMAL/BUSY/FULL）与库位上的快件清单
+ */
+export function getShelfMap(stationId) {
+  return request({
+    url: '/shelves/map',
+    method: 'get',
+    params: { stationId }
+  })
+}
+
+/** 重算货位占用数量（修复历史不一致）：PUT /api/shelves/recalculate?stationId= */
+export function recalculateShelves(stationId) {
+  return request({
+    url: '/shelves/recalculate',
+    method: 'put',
+    params: { stationId }
+  })
+}

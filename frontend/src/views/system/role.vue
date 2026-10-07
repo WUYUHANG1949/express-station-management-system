@@ -501,7 +501,7 @@ onMounted(async () => {
   align-items: center;
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 
 .panel-card__actions {
@@ -535,7 +535,7 @@ onMounted(async () => {
 }
 
 .perm-node__name {
-  color: #303133;
+  color: var(--es-text-1);
 }
 
 .perm-node__code {

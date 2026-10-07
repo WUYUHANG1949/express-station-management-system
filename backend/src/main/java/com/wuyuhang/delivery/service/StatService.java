@@ -1,9 +1,12 @@
 package com.wuyuhang.delivery.service;
 
 import com.wuyuhang.delivery.common.enums.ParcelType;
+import com.wuyuhang.delivery.mapper.ParcelMapper;
 import com.wuyuhang.delivery.mapper.StatMapper;
 import com.wuyuhang.delivery.mapper.StationMapper;
+import com.wuyuhang.delivery.security.UserContext;
 import com.wuyuhang.delivery.vo.NameValueVO;
+import com.wuyuhang.delivery.vo.ScreenVO;
 import com.wuyuhang.delivery.vo.StatOverviewVO;
 import com.wuyuhang.delivery.vo.StationRankVO;
 import com.wuyuhang.delivery.vo.TrendVO;
@@ -12,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +40,9 @@ public class StatService {
 
     private final StatMapper statMapper;
     private final StationMapper stationMapper;
+    private final ParcelMapper parcelMapper;
+    private final ParcelService parcelService;
+    private final NotifyService notifyService;
 
     /**
      * 首页概览指标。
@@ -92,6 +99,36 @@ public class StatService {
      */
     public List<StationRankVO> stationRank() {
         return statMapper.selectStationRank();
+    }
+
+    /**
+     * 数据大屏聚合数据。
+     * <p>
+     * 大屏要在首屏一次呈现多个维度，若前端逐个接口拉取会产生 7 次请求；
+     * 这里用一次请求聚合返回，减少往返并保证各指标取自同一时间点。
+     * <p>
+     * 驿站排行属于全局数据，只对管理员返回；员工只看本驿站时该字段为空数组。
+     */
+    public ScreenVO screen(Long stationId) {
+        ScreenVO vo = new ScreenVO();
+        vo.setOverview(overview(stationId));
+        vo.setTrend(trend(14, stationId));
+        vo.setCompany(companyStat(stationId));
+        vo.setParcelType(parcelTypeStat(stationId));
+        vo.setNotifyToday(notifyService.countToday(stationId));
+        vo.setServerTime(LocalDateTime.now());
+
+        vo.setRecentInStore(parcelMapper.selectRecentInStore(stationId, 8));
+        vo.getRecentInStore().forEach(parcelService::fillDisplayFields);
+        vo.setRecentPickup(parcelMapper.selectRecentPickup(stationId, 8));
+        vo.getRecentPickup().forEach(parcelService::fillDisplayFields);
+        vo.setTopOverdue(parcelMapper.selectOverdueList(stationId, 1, 8));
+        vo.getTopOverdue().forEach(parcelService::fillDisplayFields);
+
+        if (UserContext.get() != null && UserContext.get().isAdmin()) {
+            vo.setStationRank(stationRank());
+        }
+        return vo;
     }
 
     /**

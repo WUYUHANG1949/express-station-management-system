@@ -1,12 +1,18 @@
 <template>
-  <!-- 登录页：左侧品牌展示 + 右侧登录卡片 -->
+  <!-- 登录页：左侧品牌展示 + 右侧登录卡片（v1.1 换肤，功能与逻辑保持不变） -->
   <div class="login">
     <!-- ==================== 左半边：品牌展示区 ==================== -->
     <div class="login__brand">
+      <span class="login__glow login__glow--teal" />
+      <span class="login__glow login__glow--blue" />
+      <span class="login__grid" />
+
       <div class="login__brand-inner">
         <div class="login__logo">
-          <img src="/favicon.svg" alt="系统标识" />
-          <span>Express Station</span>
+          <span class="login__logo-mark">
+            <el-icon :size="22"><Van /></el-icon>
+          </span>
+          <span class="login__logo-text">Express Station</span>
         </div>
 
         <h1 class="login__title">快件收发管理系统</h1>
@@ -14,7 +20,8 @@
 
         <!-- 系统特性介绍 -->
         <ul class="login__features">
-          <li v-for="item in features" :key="item.title">
+          <li v-for="(item, index) in features" :key="item.title">
+            <span class="login__feature-index">{{ String(index + 1).padStart(2, '0') }}</span>
             <el-icon class="login__feature-icon"><component :is="item.icon" /></el-icon>
             <div class="login__feature-text">
               <strong>{{ item.title }}</strong>
@@ -24,9 +31,10 @@
         </ul>
 
         <div class="login__brand-footer">
+          <span class="login__brand-dot" />
           <span>毕业设计作品</span>
           <el-divider direction="vertical" />
-          <span>Vue 3 + Vite 5 + Element Plus</span>
+          <span>Vue 3 + Element Plus · Spring Boot 3 + MyBatis-Plus</span>
         </div>
       </div>
     </div>
@@ -35,6 +43,7 @@
     <div class="login__panel">
       <el-card class="login__card" shadow="always">
         <div class="login__card-header">
+          <span class="login__badge">EXPRESS STATION SYSTEM</span>
           <h2>欢迎登录</h2>
           <p>请输入账号信息以进入管理后台</p>
         </div>
@@ -88,8 +97,12 @@
               class="login__demo-item"
               @click="fillAccount(account)"
             >
-              <span class="login__demo-account">{{ account.username }} / {{ account.password }}</span>
               <span class="login__demo-role">{{ account.role }}</span>
+              <span class="login__demo-account">{{ account.username }} / {{ account.password }}</span>
+              <span class="login__demo-fill">
+                填充
+                <el-icon><Right /></el-icon>
+              </span>
             </div>
           </div>
         </div>
@@ -101,6 +114,7 @@
       </el-card>
 
       <p class="login__copyright">© 2026 快件收发管理系统 · 毕业设计作品</p>
+      <p class="login__stack">Vue 3 + Element Plus · Spring Boot 3 + MyBatis-Plus</p>
     </div>
   </div>
 </template>
@@ -109,11 +123,12 @@
 /**
  * 登录页
  * 功能：表单校验、回车提交、加载状态、演示账号一键填充、登录后按 redirect 参数回跳
+ * v1.1：仅升级视觉（深蓝渐变品牌区 + 白色圆角登录卡 + 胶囊式演示账号），逻辑未改动
  */
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { InfoFilled, Lock, User } from '@element-plus/icons-vue'
+import { InfoFilled, Lock, Right, User, Van } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
@@ -145,9 +160,9 @@ const rules = {
 
 /** 左侧品牌区展示的系统特性（图标均为 Element Plus 已注册的图标名） */
 const features = [
-  { icon: 'Box', title: '入库登记', desc: '录入到件信息，系统自动生成 8 位取件码并分配货位' },
-  { icon: 'Finished', title: '取件核销', desc: '支持扫码枪连续作业，自动试算逾期保管费' },
-  { icon: 'Van', title: '寄件受理', desc: '寄件单登记、状态流转与运单号回填一站式管理' },
+  { icon: 'Box', title: '收件登记', desc: '录入到件信息，系统自动生成 8 位取件码并分配货位' },
+  { icon: 'Finished', title: '取件核销', desc: '支持取件码与手机号核验，自动试算逾期保管费' },
+  { icon: 'Van', title: '寄件受理', desc: '寄件登记、状态流转与运单号回填一站式管理' },
   { icon: 'DataAnalysis', title: '数据统计', desc: '出入库趋势、快递公司分布与驿站业务量排行' }
 ]
 
@@ -222,75 +237,104 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* ---------------- 左侧品牌区 ---------------- */
+/* ==================== 左侧品牌区 ==================== */
 .login__brand {
+  position: relative;
   flex: 1.15;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  color: #fff;
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #0ea5e9 100%);
-  position: relative;
+  padding: 44px;
   overflow: hidden;
+  color: #fff;
+  background: var(--es-sidebar-gradient);
 }
 
-/* 背景装饰圆 */
-.login__brand::before,
-.login__brand::after {
-  content: '';
+/* 青绿 / 品牌蓝光晕 */
+.login__glow {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
 }
 
-.login__brand::before {
-  width: 380px;
-  height: 380px;
-  top: -120px;
+.login__glow--teal {
+  top: -140px;
   right: -120px;
+  width: 460px;
+  height: 460px;
+  background: radial-gradient(circle, rgba(22, 211, 200, 0.42), transparent 68%);
 }
 
-.login__brand::after {
-  width: 260px;
-  height: 260px;
-  bottom: -90px;
-  left: -70px;
+.login__glow--blue {
+  bottom: -180px;
+  left: -140px;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(26, 109, 255, 0.42), transparent 66%);
+}
+
+/* 网格纹理 */
+.login__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at 30% 30%, rgba(0, 0, 0, 0.9), transparent 72%);
+  -webkit-mask-image: radial-gradient(circle at 30% 30%, rgba(0, 0, 0, 0.9), transparent 72%);
 }
 
 .login__brand-inner {
   position: relative;
   z-index: 1;
+  width: 100%;
   max-width: 520px;
 }
 
 .login__logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
-  font-size: 15px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  opacity: 0.9;
+  gap: 12px;
+  margin-bottom: 26px;
 }
 
-.login__logo img {
-  width: 34px;
-  height: 34px;
+.login__logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  color: #fff;
+  background: var(--es-brand-gradient);
+  box-shadow: var(--es-shadow-brand);
+}
+
+.login__logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.86);
 }
 
 .login__title {
   margin: 0 0 10px;
-  font-size: 36px;
+  font-size: 38px;
   font-weight: 700;
   letter-spacing: 2px;
+  line-height: 1.2;
+  color: #fff;
 }
 
 .login__subtitle {
-  margin: 0 0 32px;
+  margin: 0 0 30px;
   font-size: 15px;
-  opacity: 0.86;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.74);
 }
 
 .login__features {
@@ -298,92 +342,150 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .login__features li {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 10px;
+  padding: 13px 15px;
+  border-radius: var(--es-radius);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  transition: background 0.26s var(--es-ease), transform 0.26s var(--es-ease),
+    border-color 0.26s var(--es-ease);
+}
+
+.login__features li:hover {
   background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(22, 211, 200, 0.42);
+  transform: translateX(4px);
+}
+
+.login__feature-index {
+  font-family: 'DIN Alternate', 'Bahnschrift', Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--es-cyan-400);
+  opacity: 0.9;
 }
 
 .login__feature-icon {
-  font-size: 22px;
+  font-size: 20px;
   margin-top: 2px;
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .login__feature-text {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .login__feature-text strong {
   font-size: 15px;
+  letter-spacing: 0.4px;
 }
 
 .login__feature-text span {
   font-size: 13px;
-  opacity: 0.85;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .login__brand-footer {
-  margin-top: 34px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 30px;
   font-size: 13px;
-  opacity: 0.8;
+  color: rgba(255, 255, 255, 0.66);
 }
 
-/* ---------------- 右侧登录区 ---------------- */
+.login__brand-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--es-teal-400);
+  box-shadow: 0 0 0 4px rgba(22, 211, 200, 0.2);
+}
+
+/* ==================== 右侧登录区 ==================== */
 .login__panel {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: #f5f7fa;
+  padding: 28px 24px;
   overflow-y: auto;
+  background-color: var(--es-bg-page);
+  background-image:
+    radial-gradient(760px 420px at 100% 0%, rgba(26, 109, 255, 0.08), transparent 60%),
+    radial-gradient(620px 380px at 0% 100%, rgba(22, 211, 200, 0.1), transparent 58%);
 }
 
 .login__card {
   width: 100%;
-  max-width: 420px;
-  border-radius: 12px;
+  max-width: 430px;
+  border-radius: var(--es-radius-lg) !important;
+  box-shadow: var(--es-shadow-lg) !important;
 }
 
 .login__card-header {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
   text-align: center;
+}
+
+.login__badge {
+  display: inline-block;
+  padding: 3px 10px;
+  margin-bottom: 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  color: var(--es-primary);
+  background: var(--es-brand-gradient-soft);
+  border: 1px solid rgba(26, 109, 255, 0.18);
 }
 
 .login__card-header h2 {
   margin: 0 0 6px;
-  font-size: 22px;
-  color: #1f2d3d;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--es-text-1);
 }
 
 .login__card-header p {
   margin: 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--es-text-3);
 }
 
 .login__submit {
   width: 100%;
+  height: 44px;
   letter-spacing: 4px;
   font-weight: 600;
 }
 
-/* 演示账号 */
+/* 演示账号：胶囊标签 */
 .login__demo {
-  margin-top: 4px;
+  margin-top: 6px;
   padding: 12px;
-  border-radius: 8px;
-  background: #f5f7fa;
-  border: 1px dashed #dcdfe6;
+  border-radius: var(--es-radius);
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
+  border: 1px dashed var(--es-border);
 }
 
 .login__demo-title {
@@ -392,7 +494,7 @@ onMounted(() => {
   gap: 6px;
   margin-bottom: 10px;
   font-size: 13px;
-  color: #606266;
+  color: var(--es-text-2);
 }
 
 .login__demo-list {
@@ -403,30 +505,58 @@ onMounted(() => {
 .login__demo-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 7px 10px;
-  border-radius: 6px;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 999px;
   background: #fff;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--es-border);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.24s var(--es-ease);
 }
 
 .login__demo-item:hover {
-  border-color: #2563eb;
-  background: #ecf5ff;
-  transform: translateX(2px);
-}
-
-.login__demo-account {
-  font-family: Consolas, Monaco, monospace;
-  color: #303133;
+  border-color: var(--es-primary);
+  background: linear-gradient(135deg, rgba(26, 109, 255, 0.08) 0%, rgba(22, 211, 200, 0.1) 100%);
+  transform: translateX(3px);
+  box-shadow: var(--es-shadow-sm);
 }
 
 .login__demo-role {
-  color: #909399;
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
   font-size: 12px;
+  font-weight: 600;
+  color: var(--es-primary);
+  background: rgba(26, 109, 255, 0.1);
+}
+
+.login__demo-account {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12.5px;
+  color: var(--es-text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.login__demo-fill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--es-text-3);
+  opacity: 0;
+  transition: opacity 0.24s var(--es-ease), color 0.24s var(--es-ease);
+}
+
+.login__demo-item:hover .login__demo-fill {
+  opacity: 1;
+  color: var(--es-teal-500);
 }
 
 .login__card-footer {
@@ -441,10 +571,18 @@ onMounted(() => {
 .login__copyright {
   margin-top: 18px;
   font-size: 12px;
-  color: #a8abb2;
+  color: var(--es-text-3);
 }
 
-/* ---------------- 响应式：窄屏隐藏品牌区 ---------------- */
+.login__stack {
+  margin: 4px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  color: var(--es-text-3);
+  opacity: 0.85;
+}
+
+/* ==================== 响应式：窄屏隐藏品牌区 ==================== */
 @media (max-width: 900px) {
   .login__brand {
     display: none;

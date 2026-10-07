@@ -12,8 +12,22 @@ import * as userApi from './user'
 import * as roleApi from './role'
 import * as stationApi from './station'
 import * as shelfApi from './shelf'
+import * as notifyApi from './notify'
+import * as publicApi from './public'
 
-export { authApi, parcelApi, shipApi, exceptionApi, statsApi, userApi, roleApi, stationApi, shelfApi }
+export {
+  authApi,
+  parcelApi,
+  shipApi,
+  exceptionApi,
+  statsApi,
+  userApi,
+  roleApi,
+  stationApi,
+  shelfApi,
+  notifyApi,
+  publicApi
+}
 
 export default {
   auth: authApi,
@@ -24,5 +38,7 @@ export default {
   user: userApi,
   role: roleApi,
   station: stationApi,
-  shelf: shelfApi
+  shelf: shelfApi,
+  notify: notifyApi,
+  public: publicApi
 }

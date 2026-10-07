@@ -7,6 +7,7 @@ import com.wuyuhang.delivery.security.RequiresPermission;
 import com.wuyuhang.delivery.security.UserContext;
 import com.wuyuhang.delivery.service.StatService;
 import com.wuyuhang.delivery.vo.NameValueVO;
+import com.wuyuhang.delivery.vo.ScreenVO;
 import com.wuyuhang.delivery.vo.StatOverviewVO;
 import com.wuyuhang.delivery.vo.StationRankVO;
 import com.wuyuhang.delivery.vo.TrendVO;
@@ -60,6 +61,14 @@ public class StatController {
     @RequiresPermission("dashboard")
     public Result<List<NameValueVO>> parcelType(@RequestParam(required = false) Long stationId) {
         return Result.success(statService.parcelTypeStat(resolveStationId(stationId)));
+    }
+
+    @Operation(summary = "数据大屏聚合数据",
+            description = "一次请求返回大屏所需的全部指标，避免前端并发 7 个请求")
+    @GetMapping("/screen")
+    @RequiresPermission("screen")
+    public Result<ScreenVO> screen(@RequestParam(required = false) Long stationId) {
+        return Result.success(statService.screen(resolveStationId(stationId)));
     }
 
     @Operation(summary = "驿站业务量排行", description = "仅系统管理员可查看")

@@ -567,11 +567,11 @@ async function submitForm() {
       if (orderNo) {
         await ElMessageBox.alert(
           `<div style="text-align:center;">
-             <div style="font-size:13px;color:#909399;margin-bottom:6px;">系统生成的寄件单号</div>
-             <div style="font-size:28px;font-weight:700;letter-spacing:2px;color:#2563eb;font-family:Consolas,Monaco,monospace;">
+             <div style="font-size:13px;color:var(--es-text-3);margin-bottom:6px;">系统生成的寄件单号</div>
+             <div style="font-size:28px;font-weight:700;letter-spacing:2px;color:var(--es-primary);font-family:Consolas,Monaco,monospace;">
                ${orderNo}
              </div>
-             <div style="margin-top:10px;font-size:13px;color:#909399;">请记录该单号，后续可凭此查询寄件进度</div>
+             <div style="margin-top:10px;font-size:13px;color:var(--es-text-3);">请记录该单号，后续可凭此查询寄件进度</div>
            </div>`,
           '寄件单登记成功',
           { dangerouslyUseHTMLString: true, confirmButtonText: '知道了' }

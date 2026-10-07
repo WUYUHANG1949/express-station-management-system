@@ -233,9 +233,9 @@ function usageRate(row) {
 
 /** 占用率颜色 */
 function usageColor(rate) {
-  if (rate >= 90) return '#f56c6c'
-  if (rate >= 70) return '#e6a23c'
-  return '#67c23a'
+  if (rate >= 90) return '#f04438'
+  if (rate >= 70) return '#f59f00'
+  return '#0fb98f'
 }
 
 /* ------------------------------------------------------------------

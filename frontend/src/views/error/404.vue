@@ -43,7 +43,7 @@ function goLogin() {
   font-size: 110px;
   font-weight: 800;
   line-height: 1;
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  background: var(--es-brand-gradient);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -52,13 +52,13 @@ function goLogin() {
 .error-page__title {
   margin: 18px 0 8px;
   font-size: 20px;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 
 .error-page__desc {
   margin: 0 0 24px;
   font-size: 14px;
-  color: #909399;
+  color: var(--es-text-3);
 }
 
 .error-page__actions {

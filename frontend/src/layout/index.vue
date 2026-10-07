@@ -1,16 +1,23 @@
 <template>
   <!--
     主布局
-    结构：左侧可折叠菜单（数据来自 /api/auth/menus） + 顶部面包屑/用户下拉 + 主内容区（keep-alive）
+    结构：左侧深蓝渐变侧边栏（菜单来自 /api/auth/menus）
+         + 顶部栏（折叠、面包屑、逾期提醒、大屏入口、用户下拉）
+         + 主内容区（keep-alive + 过渡动画 + 渲染错误兜底）
   -->
   <el-container class="layout">
-    <!-- ==================== 左侧菜单 ==================== -->
-    <el-aside :width="isCollapse ? '64px' : '220px'" class="layout__aside">
+    <!-- ==================== 左侧侧边栏 ==================== -->
+    <el-aside :width="isCollapse ? '64px' : '232px'" class="layout__aside">
       <!-- 品牌区 -->
       <div class="layout__brand" :class="{ 'is-collapse': isCollapse }" @click="goHome">
-        <img class="layout__brand-logo" src="/favicon.svg" alt="logo" />
+        <div class="layout__brand-logo">
+          <el-icon :size="18"><Van /></el-icon>
+        </div>
         <transition name="fade">
-          <span v-show="!isCollapse" class="layout__brand-text">快件收发管理系统</span>
+          <div v-show="!isCollapse" class="layout__brand-info">
+            <div class="layout__brand-text">快件收发管理系统</div>
+            <div class="layout__brand-sub">Express Station Platform</div>
+          </div>
         </transition>
       </div>
 
@@ -22,9 +29,7 @@
           :collapse-transition="false"
           unique-opened
           router
-          background-color="#1f2d3d"
-          text-color="#c0c4cc"
-          active-text-color="#ffffff"
+          class="layout__menu"
         >
           <template v-for="menu in menuTree" :key="menu.path || menu.permCode">
             <!-- 有子菜单：渲染 el-sub-menu -->
@@ -57,17 +62,26 @@
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
+
+      <!-- 侧边栏底部：折叠开关 + 版本号 -->
+      <div class="layout__aside-footer">
+        <div class="layout__collapse" @click="appStore.toggleSidebar()">
+          <el-icon><Expand v-if="isCollapse" /><Fold v-else /></el-icon>
+          <span v-show="!isCollapse" class="layout__collapse-text">收起菜单</span>
+        </div>
+        <div v-show="!isCollapse" class="layout__version">毕业设计 · v1.1.0</div>
+      </div>
     </el-aside>
 
     <el-container class="layout__main">
       <!-- ==================== 顶部栏 ==================== -->
-      <el-header class="layout__header" height="56px">
+      <el-header class="layout__header" height="58px">
         <div class="layout__header-left">
-          <!-- 折叠按钮 -->
-          <el-icon class="layout__collapse-btn" @click="appStore.toggleSidebar()">
+          <el-icon class="layout__header-icon" @click="appStore.toggleSidebar()">
             <Expand v-if="isCollapse" />
             <Fold v-else />
           </el-icon>
+
           <!-- 面包屑 -->
           <el-breadcrumb separator="/" class="layout__breadcrumb">
             <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
@@ -78,25 +92,47 @@
         </div>
 
         <div class="layout__header-right">
+          <!-- 逾期件提醒：点击直达逾期催取页 -->
+          <el-tooltip v-if="overdueCount > 0" content="存在逾期未取快件，点击去催取" placement="bottom">
+            <div class="layout__badge" @click="goOverdue">
+              <el-icon :size="18"><BellFilled /></el-icon>
+              <span class="layout__badge-dot">{{ overdueCount > 99 ? '99+' : overdueCount }}</span>
+            </div>
+          </el-tooltip>
+
+          <!-- 数据大屏入口（有 screen 权限才显示） -->
+          <el-tooltip v-if="hasScreenPerm" content="进入数据大屏" placement="bottom">
+            <div class="layout__header-icon" @click="goScreen">
+              <el-icon :size="18"><Monitor /></el-icon>
+            </div>
+          </el-tooltip>
+
           <!-- 当前驿站标识 -->
           <el-tag v-if="userStore.stationName" type="info" effect="plain" class="layout__station-tag">
             <el-icon><OfficeBuilding /></el-icon>
             <span class="layout__station-text">{{ userStore.stationName }}</span>
           </el-tag>
 
+          <el-divider direction="vertical" />
+
           <!-- 用户下拉 -->
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="layout__user">
-              <el-avatar :size="30" :src="userStore.avatar || ''">
-                {{ (userStore.realName || 'U').slice(0, 1) }}
-              </el-avatar>
-              <span class="layout__user-name">{{ userStore.realName }}</span>
-              <el-tag v-if="roleTag" size="small" type="warning" effect="dark">{{ roleTag }}</el-tag>
-              <el-icon><ArrowDown /></el-icon>
+              <div class="layout__avatar">
+                <img v-if="userStore.avatar" :src="userStore.avatar" alt="avatar" />
+                <span v-else>{{ (userStore.realName || 'U').slice(0, 1) }}</span>
+              </div>
+              <div class="layout__user-meta">
+                <div class="layout__user-name">{{ userStore.realName }}</div>
+                <div class="layout__user-role">{{ roleTag }}</div>
+              </div>
+              <el-icon class="layout__user-arrow"><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="profile" :icon="UserFilled">个人中心</el-dropdown-item>
+                <el-dropdown-item command="screen" :icon="Monitor">数据大屏</el-dropdown-item>
+                <el-dropdown-item command="query" :icon="Search">取件码自助查询</el-dropdown-item>
                 <el-dropdown-item command="logout" divided :icon="SwitchButton">退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -105,8 +141,22 @@
       </el-header>
 
       <!-- ==================== 主内容区 ==================== -->
-      <el-main class="layout__content">
-        <router-view v-slot="{ Component, route }">
+      <el-main class="layout__content app-main">
+        <!-- 子组件渲染异常时的兜底：避免整块内容区空白 -->
+        <el-result
+          v-if="renderError"
+          icon="error"
+          title="页面渲染出错"
+          :sub-title="renderError"
+          class="layout__error"
+        >
+          <template #extra>
+            <el-button type="primary" @click="reloadPage">重新加载</el-button>
+            <el-button @click="renderError = null">返回首页</el-button>
+          </template>
+        </el-result>
+
+        <router-view v-else v-slot="{ Component, route }">
           <transition name="fade-transform" mode="out-in">
             <keep-alive :include="keepAliveNames">
               <component :is="Component" :key="route.path" />
@@ -121,15 +171,28 @@
 <script setup>
 /**
  * 主布局组件
- * 职责：动态菜单渲染、面包屑、用户下拉、内容区 keep-alive 缓存
+ * 职责：动态菜单渲染、面包屑、逾期提醒、大屏入口、用户下拉、内容区缓存与异常兜底
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onErrorCaptured, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as ElIcons from '@element-plus/icons-vue'
-import { ArrowDown, Expand, Fold, OfficeBuilding, Odometer, SwitchButton, UserFilled } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  BellFilled,
+  Expand,
+  Fold,
+  Monitor,
+  OfficeBuilding,
+  Odometer,
+  Search,
+  SwitchButton,
+  UserFilled,
+  Van
+} from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { useUserStore } from '@/stores/user'
+import { getOverdueCount } from '@/api/parcel'
 import { ROLE_CODE_NAME } from '@/utils/dict'
 
 const route = useRoute()
@@ -139,6 +202,12 @@ const userStore = useUserStore()
 
 /** 侧边栏是否折叠 */
 const isCollapse = computed(() => appStore.sidebarCollapsed)
+
+/** 待催取的逾期件数量，显示在顶部铃铛角标上 */
+const overdueCount = ref(0)
+
+/** 是否拥有数据大屏权限 */
+const hasScreenPerm = computed(() => userStore.hasPerm('screen'))
 
 /** 图标映射表：Element Plus 全量图标（组件名 -> 组件） */
 const iconMap = ElIcons
@@ -186,10 +255,7 @@ function visibleChildren(menu) {
   return (menu.children || []).filter((child) => !!child.path)
 }
 
-/**
- * 当前高亮的菜单项
- * 取当前路由的 path；对于详情类子页面回退到父级列表页
- */
+/** 当前高亮的菜单项 */
 const activeMenu = computed(() => route.path)
 
 /** 面包屑：取当前匹配路由链上的 title */
@@ -197,7 +263,6 @@ const breadcrumbs = computed(() => {
   const list = (route.matched || [])
     .filter((item) => item.meta && item.meta.title)
     .map((item) => item.meta.title)
-  // 去掉重复的「首页」
   return list.filter((title, index) => !(index === 0 && title === '首页'))
 })
 
@@ -208,11 +273,8 @@ const roleTag = computed(() => {
 })
 
 /**
- * keep-alive 的组件名白名单
- * 约定：需要缓存的页面组件通过 defineOptions({ name: 'xxx' }) 显式声明组件名，
- * 且与路由 name 保持一致（例如 ParcelList / ShipList / ExceptionList / SystemUser / SystemStation / SystemShelf / Dashboard），
- * 这里直接取路由 name 列表，避免多个 list.vue 因同名而互相顶替。
- * @returns {Array<string>}
+ * keep-alive 的组件名白名单：取路由 meta.keepAlive 的 name 列表，
+ * 避免多个 list.vue 因组件同名而互相顶替
  */
 const keepAliveNames = computed(() =>
   router
@@ -221,18 +283,56 @@ const keepAliveNames = computed(() =>
     .map((r) => String(r.name))
 )
 
+/* ------------------------------------------------------------------
+ * 渲染异常兜底
+ * 子组件（含异步路由组件加载失败）抛错时，Vue 默认会留下空白内容区，
+ * 这里捕获后展示友好提示与「重新加载」按钮，避免出现"整页空白"的无措状态。
+ * ---------------------------------------------------------------- */
+const renderError = ref(null)
+
+onErrorCaptured((err) => {
+  renderError.value = (err && err.message) || '未知错误'
+  // 返回 false 阻止错误继续向上传播，避免整个应用白屏
+  return false
+})
+
+/** 重新加载当前页面 */
+function reloadPage() {
+  renderError.value = null
+  window.location.reload()
+}
+
 /** 点击品牌回到首页 */
 function goHome() {
   router.push('/dashboard')
 }
 
+/** 前往逾期催取页 */
+function goOverdue() {
+  router.push('/parcel/overdue')
+}
+
+/** 前往数据大屏 */
+function goScreen() {
+  router.push('/screen')
+}
+
 /**
  * 用户下拉命令处理
- * @param {string} command profile | logout
+ * @param {string} command profile | screen | query | logout
  */
 async function handleCommand(command) {
   if (command === 'profile') {
     router.push('/profile')
+    return
+  }
+  if (command === 'screen') {
+    router.push('/screen')
+    return
+  }
+  if (command === 'query') {
+    // 公开查询页与登录态无关，新开标签避免打断当前作业
+    window.open('/query', '_blank')
     return
   }
   if (command === 'logout') {
@@ -251,13 +351,24 @@ async function handleCommand(command) {
   }
 }
 
-/** 布局挂载后拉取菜单（路由守卫已保证登录态有效） */
+/** 拉取逾期件数量（失败静默，不影响主流程） */
+async function loadOverdueCount() {
+  if (!userStore.hasPerm('parcel:list')) return
+  try {
+    overdueCount.value = Number(await getOverdueCount()) || 0
+  } catch (e) {
+    overdueCount.value = 0
+  }
+}
+
+/** 布局挂载后拉取菜单与逾期提醒 */
 onMounted(async () => {
   try {
     await userStore.fetchMenus()
   } catch (e) {
     // 菜单拉取失败不阻塞页面渲染，已由响应拦截器统一提示
   }
+  loadOverdueCount()
 })
 </script>
 
@@ -267,25 +378,42 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* ---------------- 左侧 ---------------- */
+/* ---------------- 左侧侧边栏 ---------------- */
 .layout__aside {
   display: flex;
   flex-direction: column;
-  background-color: #1f2d3d;
-  transition: width 0.25s ease;
+  background: var(--es-sidebar-gradient);
+  transition: width 0.26s var(--es-ease);
   overflow: hidden;
+  position: relative;
+  box-shadow: 2px 0 16px rgba(7, 26, 58, 0.28);
+  z-index: 20;
+}
+
+/* 侧边栏右上角的青色光晕，让纯色渐变有层次 */
+.layout__aside::after {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(22, 211, 200, 0.24) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .layout__brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 56px;
-  padding: 0 16px;
-  color: #fff;
+  height: 58px;
+  padding: 0 14px;
   cursor: pointer;
-  background: linear-gradient(135deg, #1d4ed8, #2563eb);
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 1;
 }
 
 .layout__brand.is-collapse {
@@ -294,39 +422,148 @@ onMounted(async () => {
 }
 
 .layout__brand-logo {
-  width: 26px;
-  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--es-brand-gradient);
+  box-shadow: 0 4px 12px rgba(22, 211, 200, 0.32);
+}
+
+.layout__brand-info {
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .layout__brand-text {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  white-space: nowrap;
-  letter-spacing: 0.5px;
+  color: #fff;
+  letter-spacing: 0.4px;
+  line-height: 1.2;
+}
+
+.layout__brand-sub {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
 .layout__menu-scroll {
   flex: 1;
   overflow-x: hidden;
+  position: relative;
+  z-index: 1;
 }
 
-.layout__aside :deep(.el-menu) {
+.layout__menu {
   border-right: none;
+  background: transparent;
+  padding: 8px;
 }
 
-.layout__aside :deep(.el-menu-item.is-active) {
-  background-color: #2563eb !important;
+/* 菜单项：透明底 + 悬停玻璃感 + 选中渐变药丸 */
+.layout__aside :deep(.el-menu) {
+  background: transparent;
+}
+
+.layout__aside :deep(.el-menu-item),
+.layout__aside :deep(.el-sub-menu__title) {
+  height: 44px;
+  line-height: 44px;
+  margin: 3px 0;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  transition: all 0.22s var(--es-ease);
 }
 
 .layout__aside :deep(.el-menu-item:hover),
 .layout__aside :deep(.el-sub-menu__title:hover) {
-  background-color: #2b3a4d !important;
+  background-color: rgba(255, 255, 255, 0.09) !important;
+  color: #fff;
 }
 
-/* ---------------- 顶部 ---------------- */
+.layout__aside :deep(.el-menu-item.is-active) {
+  background: var(--es-brand-gradient) !important;
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(26, 109, 255, 0.36);
+}
+
+/* 选中项左侧的青色指示条 */
+.layout__aside :deep(.el-menu-item.is-active)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--es-teal-400);
+}
+
+.layout__aside :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+  color: #fff;
+}
+
+.layout__aside :deep(.el-sub-menu .el-menu-item) {
+  min-width: auto;
+  padding-left: 44px !important;
+}
+
+/* 折叠态下的弹出子菜单使用深色底，保持与侧边栏一致 */
+.layout__aside :deep(.el-menu--collapse) {
+  width: 48px;
+}
+
+.layout__aside-footer {
+  flex-shrink: 0;
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.layout__collapse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s var(--es-ease);
+}
+
+.layout__collapse:hover {
+  background-color: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.layout__collapse-text {
+  white-space: nowrap;
+}
+
+.layout__version {
+  margin-top: 6px;
+  padding-left: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+
+/* ---------------- 顶部栏 ---------------- */
 .layout__main {
-  background-color: #f0f2f5;
+  background: transparent;
   overflow: hidden;
 }
 
@@ -334,9 +571,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  background-color: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  padding: 0 18px;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--es-border);
   z-index: 10;
 }
 
@@ -347,14 +585,56 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.layout__collapse-btn {
-  font-size: 20px;
+.layout__header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--es-text-2);
   cursor: pointer;
-  color: #5a6a7a;
+  transition: all 0.2s var(--es-ease);
 }
 
-.layout__collapse-btn:hover {
-  color: #2563eb;
+.layout__header-icon:hover {
+  background: var(--es-brand-gradient-soft);
+  color: var(--es-primary);
+}
+
+/* 逾期提醒铃铛 */
+.layout__badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  color: var(--el-color-danger);
+  cursor: pointer;
+  transition: all 0.2s var(--es-ease);
+}
+
+.layout__badge:hover {
+  background: rgba(240, 68, 56, 0.1);
+}
+
+.layout__badge-dot {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--el-color-danger);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px #fff;
 }
 
 .layout__breadcrumb {
@@ -371,29 +651,71 @@ onMounted(async () => {
   margin-left: 4px;
 }
 
+/* 用户信息块 */
 .layout__user {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  gap: 9px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
   cursor: pointer;
   outline: none;
+  transition: background-color 0.2s var(--es-ease);
 }
 
 .layout__user:hover {
-  background-color: #f5f7fa;
+  background-color: #f3f7ff;
+}
+
+.layout__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--es-brand-gradient);
+  flex-shrink: 0;
+}
+
+.layout__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.layout__user-meta {
+  line-height: 1.25;
 }
 
 .layout__user-name {
-  font-size: 14px;
-  color: #303133;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--es-text-1);
+}
+
+.layout__user-role {
+  font-size: 11px;
+  color: var(--es-text-3);
+}
+
+.layout__user-arrow {
+  color: var(--es-text-3);
+  font-size: 12px;
 }
 
 /* ---------------- 内容区 ---------------- */
 .layout__content {
-  padding: 16px;
+  padding: 18px;
   overflow-y: auto;
+}
+
+.layout__error {
+  margin-top: 60px;
 }
 
 /* 过渡动画 */
@@ -409,16 +731,16 @@ onMounted(async () => {
 
 .fade-transform-enter-active,
 .fade-transform-leave-active {
-  transition: all 0.25s ease;
+  transition: all 0.26s var(--es-ease);
 }
 
 .fade-transform-enter-from {
   opacity: 0;
-  transform: translateX(-12px);
+  transform: translateY(8px);
 }
 
 .fade-transform-leave-to {
   opacity: 0;
-  transform: translateX(12px);
+  transform: translateY(-6px);
 }
 </style>

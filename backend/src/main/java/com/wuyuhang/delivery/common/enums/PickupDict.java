@@ -42,6 +42,18 @@ public final class PickupDict {
             }
             return code;
         }
+
+        public static boolean isValid(String code) {
+            if (code == null) {
+                return false;
+            }
+            for (PickupType type : values()) {
+                if (type.name().equals(code)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     /**
@@ -73,6 +85,18 @@ public final class PickupDict {
                 }
             }
             return code;
+        }
+
+        public static boolean isValid(String code) {
+            if (code == null) {
+                return false;
+            }
+            for (VerifyType type : values()) {
+                if (type.name().equals(code)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

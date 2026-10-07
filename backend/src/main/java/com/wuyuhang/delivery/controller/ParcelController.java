@@ -81,6 +81,24 @@ public class ParcelController {
         return Result.success(parcelService.page(pageNum, pageSize, query));
     }
 
+    @Operation(summary = "逾期未取快件分页查询",
+            description = "按逾期天数倒序返回，minDays 可筛选「至少逾期 N 天」，用于分层催取")
+    @GetMapping("/overdue/page")
+    @RequiresPermission("parcel:overdue")
+    public Result<PageResult<Parcel>> overduePage(@RequestParam(defaultValue = "1") long pageNum,
+                                                  @RequestParam(defaultValue = "10") long pageSize,
+                                                  @RequestParam(required = false) Long stationId,
+                                                  @RequestParam(required = false, defaultValue = "1") Integer minDays) {
+        return Result.success(parcelService.overduePage(pageNum, pageSize, stationId, minDays));
+    }
+
+    @Operation(summary = "逾期未取件数量", description = "供首页与侧边栏角标使用")
+    @GetMapping("/overdue/count")
+    @RequiresPermission("parcel:list")
+    public Result<Integer> overdueCount(@RequestParam(required = false) Long stationId) {
+        return Result.success(parcelService.countOverdue(stationId));
+    }
+
     @Operation(summary = "快件详情")
     @GetMapping("/{id}")
     @RequiresPermission("parcel:list")

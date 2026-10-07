@@ -104,3 +104,27 @@ export function exportParcels(params) {
     responseType: 'blob'
   })
 }
+
+/* ==================== v1.1 新增：逾期催取 ==================== */
+
+/**
+ * 逾期未取快件分页查询
+ * GET /api/parcels/overdue/page?pageNum&pageSize&stationId&minDays
+ * 按逾期天数倒序，minDays 可筛选「至少逾期 N 天」
+ */
+export function pageOverdueParcels(params) {
+  return request({
+    url: '/parcels/overdue/page',
+    method: 'get',
+    params
+  })
+}
+
+/** 逾期未取件数量（顶部铃铛角标）：GET /api/parcels/overdue/count */
+export function getOverdueCount(stationId) {
+  return request({
+    url: '/parcels/overdue/count',
+    method: 'get',
+    params: { stationId }
+  })
+}

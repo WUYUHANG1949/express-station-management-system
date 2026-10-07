@@ -9,14 +9,13 @@
     <el-skeleton v-if="loading && !overview" :rows="3" animated class="mb-12" />
 
     <el-row :gutter="12" class="mb-12">
-      <el-col v-for="item in statCards" :key="item.label" :xs="12" :sm="8" :md="6" :lg="3" class="stat-col">
+      <el-col v-for="item in statCards" :key="item.label" :xs="12" :sm="8" :md="6" :lg="6" :xl="3" class="stat-col">
         <StatCard
           :label="item.label"
           :value="item.value"
           :unit="item.unit"
           :icon="item.icon"
-          :color="item.color"
-          :bg-color="item.bgColor"
+          :preset="item.preset"
           :sub-text="item.subText"
         />
       </el-col>
@@ -136,9 +135,9 @@ const progressPercent = computed(() => {
 
 /** 使用率越高颜色越警示 */
 const progressColor = computed(() => {
-  if (progressPercent.value >= 90) return '#f56c6c'
-  if (progressPercent.value >= 70) return '#e6a23c'
-  return '#2563eb'
+  if (progressPercent.value >= 90) return '#f04438'
+  if (progressPercent.value >= 70) return '#f59f00'
+  return '#1a6dff'
 })
 
 /** 趋势图是否为空数据 */
@@ -162,8 +161,7 @@ const statCards = computed(() => {
       value: formatNumber(o.todayInCount),
       unit: '件',
       icon: 'Download',
-      color: '#2563eb',
-      bgColor: '#ecf5ff',
+      preset: 'teal',
       subText: '今日新登记到件'
     },
     {
@@ -171,8 +169,7 @@ const statCards = computed(() => {
       value: formatNumber(o.todayPickupCount),
       unit: '件',
       icon: 'Finished',
-      color: '#67c23a',
-      bgColor: '#f0f9eb',
+      preset: 'blue',
       subText: '今日完成核销'
     },
     {
@@ -180,8 +177,7 @@ const statCards = computed(() => {
       value: formatNumber(o.todayShipCount),
       unit: '件',
       icon: 'Van',
-      color: '#0ea5e9',
-      bgColor: '#e8f7ff',
+      preset: 'purple',
       subText: '今日受理寄件单'
     },
     {
@@ -189,8 +185,7 @@ const statCards = computed(() => {
       value: formatNumber(o.inStoreCount),
       unit: '件',
       icon: 'Box',
-      color: '#409eff',
-      bgColor: '#ecf5ff',
+      preset: 'blue',
       subText: '当前在库待取'
     },
     {
@@ -198,8 +193,7 @@ const statCards = computed(() => {
       value: formatNumber(o.overdueCount),
       unit: '件',
       icon: 'AlarmClock',
-      color: '#e6a23c',
-      bgColor: '#fdf6ec',
+      preset: 'orange',
       subText: '超过免费保管天数'
     },
     {
@@ -207,8 +201,7 @@ const statCards = computed(() => {
       value: formatNumber(o.exceptionCount),
       unit: '件',
       icon: 'Warning',
-      color: '#f56c6c',
-      bgColor: '#fef0f0',
+      preset: 'red',
       subText: '待处理与处理中'
     },
     {
@@ -216,8 +209,7 @@ const statCards = computed(() => {
       value: formatNumber(o.deliveringCount),
       unit: '件',
       icon: 'Promotion',
-      color: '#909399',
-      bgColor: '#f4f4f5',
+      preset: 'purple',
       subText: '已派送未签收'
     },
     {
@@ -225,8 +217,7 @@ const statCards = computed(() => {
       value: formatNumber(o.totalParcelCount),
       unit: '件',
       icon: 'DataLine',
-      color: '#7c3aed',
-      bgColor: '#f3eeff',
+      preset: 'gray',
       subText: '历史累计登记总量'
     }
   ]
@@ -262,7 +253,7 @@ const trendOption = computed(() => {
         smooth: true,
         symbolSize: 7,
         data: t.inCounts || [],
-        itemStyle: { color: '#2563eb' },
+        itemStyle: { color: '#16d3c8' },
         lineStyle: { width: 3 },
         areaStyle: {
           color: {
@@ -272,8 +263,8 @@ const trendOption = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(37,99,235,0.35)' },
-              { offset: 1, color: 'rgba(37,99,235,0.02)' }
+              { offset: 0, color: 'rgba(22,211,200,0.35)' },
+              { offset: 1, color: 'rgba(22,211,200,0.02)' }
             ]
           }
         }
@@ -284,7 +275,7 @@ const trendOption = computed(() => {
         smooth: true,
         symbolSize: 7,
         data: t.pickupCounts || [],
-        itemStyle: { color: '#67c23a' },
+        itemStyle: { color: '#1a6dff' },
         lineStyle: { width: 3 },
         areaStyle: {
           color: {
@@ -294,8 +285,8 @@ const trendOption = computed(() => {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(103,194,58,0.32)' },
-              { offset: 1, color: 'rgba(103,194,58,0.02)' }
+              { offset: 0, color: 'rgba(26,109,255,0.32)' },
+              { offset: 1, color: 'rgba(26,109,255,0.02)' }
             ]
           }
         }
@@ -404,13 +395,13 @@ onMounted(() => {
 
 .shelf-card__icon {
   font-size: 30px;
-  color: #2563eb;
+  color: var(--es-primary);
 }
 
 .shelf-card__value {
   font-size: 24px;
   font-weight: 700;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 
 .shelf-card__right {
@@ -420,7 +411,7 @@ onMounted(() => {
 
 /* 图表卡片 */
 .chart-card {
-  border-radius: 8px;
+  border-radius: var(--es-radius-lg);
   border: none;
   margin-bottom: 12px;
 }
@@ -434,6 +425,6 @@ onMounted(() => {
 .chart-card__title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 </style>

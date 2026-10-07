@@ -50,8 +50,58 @@ public interface ParcelMapper extends BaseMapper<Parcel> {
 
     /**
      * 统计逾期未取快件数量（在库且入库时间超过免费保管天数）。
+     *
+     * @param stationId  驿站ID，为空表示全部驿站（仅管理员可用）
+     * @param limitPhone 数据权限：仅统计该手机号名下的快件（普通用户），可为空
      */
-    int countOverdue(@Param("stationId") Long stationId);
+    int countOverdue(@Param("stationId") Long stationId, @Param("limitPhone") String limitPhone);
+
+    /**
+     * 分页查询逾期未取快件。
+     * <p>
+     * 「逾期」判定：已保管天数（DATEDIFF(NOW(), in_time)）超过免费保管天数 overdue_days，
+     * 超出部分达到 minDays 天才算入结果，便于按「逾期 1 天 / 3 天 / 7 天以上」分层催取。
+     *
+     * @param stationId  驿站ID，为空表示全部驿站
+     * @param minDays    至少逾期天数，默认 1
+     * @param limitPhone 数据权限：仅查询该手机号的快件（普通用户），可为空
+     */
+    IPage<Parcel> selectOverduePage(IPage<Parcel> page,
+                                    @Param("stationId") Long stationId,
+                                    @Param("minDays") Integer minDays,
+                                    @Param("limitPhone") String limitPhone);
+
+    /**
+     * 查询逾期未取快件列表（不分页），供批量催取使用。
+     */
+    List<Parcel> selectOverdueList(@Param("stationId") Long stationId,
+                                   @Param("minDays") Integer minDays,
+                                   @Param("limit") Integer limit);
+
+    /**
+     * 公开取件码查询：按手机号查询仍在驿站的快件（免登录页面使用）。
+     * <p>
+     * 只返回在库待取与派送中的快件，且限制返回条数，
+     * 避免通过手机号探测到历史快件信息。
+     */
+    List<Parcel> selectPublicByPhone(@Param("phone") String phone, @Param("limit") Integer limit);
+
+    /**
+     * 查询仍占用货位的快件，供货位地图按库位分组展示。
+     *
+     * @param stationId 驿站ID，为空表示全部驿站
+     */
+    List<Parcel> selectOnShelfParcels(@Param("stationId") Long stationId);
+
+    /**
+     * 最近入库的快件（数据大屏滚动展示用）。
+     */
+    List<Parcel> selectRecentInStore(@Param("stationId") Long stationId, @Param("limit") Integer limit);
+
+    /**
+     * 最近取件的快件（数据大屏滚动展示用）。
+     */
+    List<Parcel> selectRecentPickup(@Param("stationId") Long stationId, @Param("limit") Integer limit);
 
     /**
      * 把某库位下的在库快件全部置为空库位（删除货位前调用）。

@@ -30,6 +30,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login",
                         "/api/auth/register",
+                        // 收件人自助查询取件码，免登录
+                        "/api/public/**",
                         "/error",
                         "/doc.html",
                         "/swagger-ui.html",

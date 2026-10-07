@@ -5,8 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wuyuhang.delivery.common.BusinessException;
 import com.wuyuhang.delivery.common.PageResult;
 import com.wuyuhang.delivery.common.enums.OperateType;
+import com.wuyuhang.delivery.common.enums.NotifyDict;
 import com.wuyuhang.delivery.common.enums.ParcelStatus;
 import com.wuyuhang.delivery.common.enums.ParcelType;
+import com.wuyuhang.delivery.common.enums.PickupDict;
 import com.wuyuhang.delivery.common.util.BizNoGenerator;
 import com.wuyuhang.delivery.common.util.ExpressCompanyUtil;
 import com.wuyuhang.delivery.dto.ParcelInStoreDTO;
@@ -69,6 +71,7 @@ public class ParcelService {
     private final ShelfMapper shelfMapper;
     private final SysUserMapper userMapper;
     private final ExcelExportService excelExportService;
+    private final NotifyService notifyService;
 
     // ==================================================================
     //  一、收件登记（入库）
@@ -142,6 +145,9 @@ public class ParcelService {
         log.info("快件入库：运单号 {}，取件码 {}，驿站 {}，货位 {}",
                 waybillNo, pickupCode, stationId, shelfCode);
 
+        // 到件后自动给收件人发送取件通知（内部已捕获异常，通知失败不会影响入库）
+        notifyService.autoSend(parcel, NotifyDict.NotifyType.IN_STORE, NotifyDict.Channel.SMS);
+
         Parcel saved = parcelMapper.selectParcelDetail(parcel.getId());
         fillDisplayFields(saved);
         return saved;
@@ -183,6 +189,16 @@ public class ParcelService {
                 ? dto.getStorageFee()
                 : calculateFee(parcel.getInTime(), parcel.getOverdueDays()).getOverdueFee();
 
+        // 取件方式与核验方式必须落在约定的枚举集合内，避免写入脏数据
+        String pickupType = StringUtils.hasText(dto.getPickupType()) ? dto.getPickupType() : "SELF";
+        String verifyType = StringUtils.hasText(dto.getVerifyType()) ? dto.getVerifyType() : "CODE";
+        if (!PickupDict.PickupType.isValid(pickupType)) {
+            throw new BusinessException("非法的取件方式：" + pickupType);
+        }
+        if (!PickupDict.VerifyType.isValid(verifyType)) {
+            throw new BusinessException("非法的核验方式：" + verifyType);
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
         // 4. 更新快件状态为已取件
@@ -206,8 +222,8 @@ public class ParcelService {
         record.setReceiverName(dto.getReceiverName());
         record.setReceiverPhone(StringUtils.hasText(dto.getReceiverPhone())
                 ? dto.getReceiverPhone() : parcel.getReceiverPhone());
-        record.setPickupType(StringUtils.hasText(dto.getPickupType()) ? dto.getPickupType() : "SELF");
-        record.setVerifyType(StringUtils.hasText(dto.getVerifyType()) ? dto.getVerifyType() : "CODE");
+        record.setPickupType(pickupType);
+        record.setVerifyType(verifyType);
         record.setStorageFee(storageFee);
         record.setStationId(parcel.getStationId());
         record.setOperatorId(loginUser.getUserId());
@@ -218,9 +234,13 @@ public class ParcelService {
 
         // 7. 写入轨迹
         parcel.setStatus(ParcelStatus.PICKED_UP.name());
+        parcel.setPickupTime(now);
         saveTrace(parcel, OperateType.PICKUP,
                 "取件核销完成，" + (storageFee.compareTo(BigDecimal.ZERO) > 0
                         ? "收取逾期保管费 " + storageFee.toPlainString() + " 元" : "无需缴纳保管费"));
+
+        // 8. 自动发送取件确认通知（通知失败不影响核销）
+        notifyService.autoSend(parcel, NotifyDict.NotifyType.PICKUP_DONE, NotifyDict.Channel.APP);
 
         log.info("取件核销：运单号 {}，取件码 {}，操作员 {}，保管费 {}",
                 parcel.getWaybillNo(), parcel.getPickupCode(), loginUser.getRealName(), storageFee);
@@ -308,6 +328,53 @@ public class ParcelService {
      */
     public String exportFileName() {
         return excelExportService.buildFileName();
+    }
+
+    /**
+     * 分页查询逾期未取快件。
+     * <p>
+     * 「逾期」= 已保管天数超过免费保管天数，且超出部分达到 minDays 天，
+     * 便于按「逾期 1 天以上 / 3 天以上 / 7 天以上」分层催取。
+     *
+     * @param stationId 驿站ID，管理员可指定；员工与普通用户由后端强制收敛
+     * @param minDays   至少逾期天数，默认 1
+     */
+    public PageResult<Parcel> overduePage(long pageNum, long pageSize, Long stationId, Integer minDays) {
+        LoginUser loginUser = UserContext.require();
+        Long scopeStationId = stationId;
+        String limitPhone = null;
+        if (loginUser.isAdmin()) {
+            // 管理员可查看任意驿站，stationId 为空表示全部
+        } else if (loginUser.hasRole("STAFF")) {
+            scopeStationId = loginUser.getStationId();
+        } else {
+            // 普通用户只能看到本人名下逾期未取的快件
+            scopeStationId = null;
+            limitPhone = currentUserPhone();
+        }
+        int days = (minDays == null || minDays < 1) ? 1 : minDays;
+
+        var result = parcelMapper.selectOverduePage(new Page<>(pageNum, pageSize), scopeStationId, days, limitPhone);
+        result.getRecords().forEach(this::fillDisplayFields);
+        return PageResult.of(result);
+    }
+
+    /**
+     * 查询逾期未取快件数量，供首页与侧边栏角标使用。
+     * <p>
+     * 数据权限与分页接口保持一致，避免"角标显示的数字比列表里能看到的还多"：
+     * 管理员可看全部或指定驿站；员工固定本驿站；普通用户只统计本人手机号名下的逾期件。
+     */
+    public int countOverdue(Long stationId) {
+        LoginUser loginUser = UserContext.require();
+        if (loginUser.isAdmin()) {
+            return parcelMapper.countOverdue(stationId, null);
+        }
+        if (loginUser.hasRole("STAFF")) {
+            return parcelMapper.countOverdue(loginUser.getStationId(), null);
+        }
+        // 普通用户：stationId 必须置空，否则会统计到全部驿站的逾期件
+        return parcelMapper.countOverdue(null, currentUserPhone());
     }
 
     // ==================================================================
@@ -484,9 +551,11 @@ public class ParcelService {
     }
 
     /**
-     * 填充前端展示用的派生字段（状态中文名、类型中文名、保管天数、逾期费）。
+     * 填充前端展示用的派生字段（状态中文名、类型中文名、保管天数、逾期天数、逾期费）。
+     * <p>
+     * 其它服务（货位地图、数据大屏等）也需要同一套派生字段，因此这里对外开放。
      */
-    private void fillDisplayFields(Parcel parcel) {
+    public void fillDisplayFields(Parcel parcel) {
         if (parcel == null) {
             return;
         }
@@ -494,6 +563,7 @@ public class ParcelService {
         parcel.setParcelTypeName(ParcelType.labelOf(parcel.getParcelType()));
         OverdueFeeVO fee = calculateFee(parcel.getInTime(), parcel.getOverdueDays());
         parcel.setStorageDays(fee.getStorageDays());
+        parcel.setOverdueDayCount(fee.getOverdueDays());
         parcel.setOverdueFee(
                 ParcelStatus.PICKED_UP.name().equals(parcel.getStatus()) && parcel.getStorageFee() != null
                         ? parcel.getStorageFee() : fee.getOverdueFee());

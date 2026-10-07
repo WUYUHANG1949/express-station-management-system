@@ -4,9 +4,14 @@
 | -------- | ------------------------------ |
 | 文档名称 | 系统测试用例说明书 |
 | 作者 | 吴宇航 |
-| 版本 | V1.0 |
+| 版本 | V1.1 |
 | 测试对象 | 后端服务（Spring Boot 3.2.5，8080 端口）、前端应用（Vue 3 + Vite，5173 端口） |
 | 接口前缀 | `/api` |
+
+> **V1.1 变更说明**：新增功能测试用例 TC-074 至 TC-096（通知与催取、货位可视化与数据大屏、收件人自助查询三组）
+> 与接口测试用例 TC-API-047 至 TC-API-061；需求覆盖矩阵纳入 FR-26 至 FR-30；
+> 基线数据核对补充 `notify_record` 的条数与构成、权限总数 43 项与角色权限分布；
+> 并按 v1.1 代码行为修正取件核销状态口径、错误提示语与「派送中快件可当面签收核销」等既有用例。
 
 ---
 
@@ -14,7 +19,7 @@
 
 ### 1.1 测试目的
 
-1. 验证系统实现与《软件需求规格说明书》及《前后端接口契约》的一致性，确认全部功能需求（FR-01 至 FR-25）均已实现且行为正确。
+1. 验证系统实现与《软件需求规格说明书》及《前后端接口契约》的一致性，确认全部功能需求（FR-01 至 FR-30）均已实现且行为正确。
 2. 验证三类角色（`ADMIN`、`STAFF`、`USER`）的菜单级与按钮级权限隔离有效，不存在越权访问与越权查询。
 3. 验证关键业务路径的数据一致性，重点检查收件登记、取件核销、异常件处理过程中的多表写入与货位计数是否准确。
 4. 验证系统对异常输入与非法操作的容错能力，确认返回的业务码与中文提示语符合接口契约约定。
@@ -47,6 +52,17 @@
 
 基线数据要点：`parcel` 表初始 25 条记录；`parcel.id = 1`（运单号 `SF1234567890123`，取件码 `10012034`）为驿站 1 的在库快件；`parcel.id = 7`（运单号 `EMS8899001122334`，取件码 `10042319`，`in_time` 为 4 天前，`overdue_days = 3`，`storage_fee = 2.00`）为逾期在库快件；`parcel.id = 10`（运单号 `ZT7788990011240`）为已取件快件；`parcel.id = 13`（运单号 `YD1122334455670`）为派送中快件；`parcel.id = 14`（运单号 `EMS8899001122340`）为异常件；`parcel.id = 15`（运单号 `JT5566778899010`）为已退回快件；`ship_order` 表初始 8 条记录，其中 `S20260101100004`、`S20260101100008` 为 `PENDING` 状态。
 
+初始化数据核对（v1.1 更新）：
+
+| 数据对象 | 初始条数 | 构成说明 |
+| -------- | -------- | -------- |
+| `parcel` | 25 | 驿站 1 共 15 条、驿站 2 共 10 条；状态构成为在库 16 条、已取件 5 条、派送中 1 条、异常 2 条、已退回 1 条 |
+| `ship_order` | 8 | 状态构成为 `PENDING` 2 条、`ACCEPTED` 2 条、`SHIPPED` 3 条、`CANCELLED` 1 条 |
+| `exception_record` | 3 | 仍为 3 条：破损（`HANDLING`）、地址错误（`PENDING`）、拒收（`RESOLVED`），v1.1 未变更 |
+| `notify_record` | 29 | 由 `parcel` 表推导生成，构成为：① 为仍在货架上的快件（`IN_STORE`/`DELIVERING`/`EXCEPTION`）生成 19 条 `IN_STORE` 到件通知；② 为已超过免费保管期的在库快件生成 3 条 `OVERDUE` 逾期催取通知；③ 为已取件快件生成 5 条 `PICKUP_DONE` 取件确认通知（渠道 `APP`）；④ 另有 2 条 `send_status = FAILED` 的示例记录（1 条 `OVERDUE`、1 条 `EXCEPTION`），带 `fail_reason` 用于演示失败提示与重发。按类型汇总为 `IN_STORE` 19 条、`OVERDUE` 4 条、`PICKUP_DONE` 5 条、`EXCEPTION` 1 条 |
+| `sys_permission` | 43 | v1.1 由 35 项增加到 43 项（菜单类 21 条、按钮类 22 条） |
+| `sys_role_permission` | 75 | ADMIN 43 项（全部权限）+ STAFF 29 项 + USER 3 项（`dashboard`、`parcel:list`、`profile`） |
+
 ### 1.4 测试方法
 
 1. **黑盒功能测试**：以需求与接口契约为依据，通过前端界面与接口工具验证功能行为，综合运用等价类划分（如手机号有效类与无效类）、边界值分析（如密码长度 6 位与 20 位、取件码位数、分页页码）、错误推测（如重复运单号、并发核销）等方法设计用例。
@@ -67,7 +83,7 @@
 
 ### 1.7 用例编号规则与优先级说明
 
-1. 功能测试用例编号格式为 `TC-` 加三位序号，按模块分段连续编号，段内顺序体现业务先后关系：认证模块 TC-001 至 TC-011，权限模块 TC-012 至 TC-018，收件登记模块 TC-019 至 TC-025，取件核销与派送模块 TC-026 至 TC-037，寄件登记模块 TC-038 至 TC-043，异常件管理模块 TC-044 至 TC-050，查询与统计模块 TC-051 至 TC-063，系统管理与基础数据模块 TC-064 至 TC-073。
+1. 功能测试用例编号格式为 `TC-` 加三位序号，按模块分段连续编号，段内顺序体现业务先后关系：认证模块 TC-001 至 TC-011，权限模块 TC-012 至 TC-018，收件登记模块 TC-019 至 TC-025，取件核销与派送模块 TC-026 至 TC-037，寄件登记模块 TC-038 至 TC-043，异常件管理模块 TC-044 至 TC-050，查询与统计模块 TC-051 至 TC-063，系统管理与基础数据模块 TC-064 至 TC-073，通知与逾期催取模块 TC-074 至 TC-087，货位可视化与数据大屏模块 TC-088 至 TC-092，收件人自助查询模块 TC-093 至 TC-098，取件方式与核验方式校验 TC-099 至 TC-100（后四段为 v1.1 新增）。
 2. 接口测试用例编号格式为 `TC-API-` 加三位序号，按接口所属模块分组连续编号，与功能用例分开统计，避免重复计数。
 3. 优先级分为三级。高：核心业务路径与安全相关用例，必须全部通过，任一条失败即判定本轮测试不通过；中：影响使用效率或数据完整性的用例，允许在修复后回归；低：边界与异常提示类用例，可在验收前完成。
 4. 每条用例的"预期结果"均包含三项可验证内容中的一项或多项：预期业务码与提示语原文、预期界面表现、预期数据库变化（表名与字段取值），以保证测试结论可复现。
@@ -124,15 +140,15 @@
 | TC-026 | 取件核销 | 取件码与运单号正确完成核销 | 已用 staff01 登录；`parcel.id = 1` 状态为 `IN_STORE`，取件码 `10012034`，`shelf_id = 1` 的 `used_count` 记为 N | 1. 进入取件核销页；2. 输入取件码 `10012034`；3. 选择目标快件并确认取件方式 SELF、核验方式 CODE、实收取件人 王小明；4. 提交核销 | HTTP 200，`code = 200`；`parcel.id = 1` 的 `status` 变为 `PICKED_UP`、`pickup_time` 为当前时间；`pickup_record` 新增 1 行（`parcel_id = 1`、`pickup_code = 10012034`、`pickup_type = SELF`、`verify_type = CODE`、`operator_name = 李思远`）；`parcel_trace` 新增 1 行 `operate_type = PICKUP`；`shelf.id = 1` 的 `used_count` 变为 N-1 | 通过 | 高 |
 | TC-027 | 取件核销 | 取件码错误时拒绝核销 | `parcel.id = 1` 仍为 `IN_STORE` | 1. 运单号填 `SF1234567890123`，取件码填 `99999999`；2. 提交核销 | HTTP 200，`code = 1001`，`message = 取件码不正确，请核对`；`parcel.id = 1` 状态仍为 `IN_STORE`；`pickup_record` 与 `parcel_trace` 均无新增记录 | 通过 | 高 |
 | TC-028 | 取件核销 | 取件码与运单号不匹配（张冠李戴） | `parcel.id = 1` 与 `parcel.id = 2` 均为 `IN_STORE` | 1. 运单号填 `SF1234567890123`（id = 1），取件码填 `10015678`（属于 id = 2）；2. 提交核销 | HTTP 200，`code = 1001`，`message = 取件码不正确，请核对`；两票快件状态均不变，数据库无写入 | 通过 | 高 |
-| TC-029 | 取件核销 | 已取件快件再次核销被拒绝 | `parcel.id = 10` 状态为 `PICKED_UP`，取件码 `10058765` | 1. 运单号填 `ZT7788990011240`，取件码填 `10058765`；2. 提交核销 | HTTP 200，`code = 1001`，`message = 该快件当前状态不可取件`；`pickup_record` 中 `parcel_id = 10` 的记录仍只有 1 条；货位占用不再二次扣减 | 通过 | 高 |
-| TC-030 | 取件核销 | 派送中快件不可直接核销 | `parcel.id = 13` 状态为 `DELIVERING` | 1. 运单号填 `YD1122334455670`，取件码填 `10073456`；2. 提交核销 | HTTP 200，`code = 1001`，`message = 该快件当前状态不可取件`；状态保持 `DELIVERING` | 通过 | 中 |
+| TC-029 | 取件核销 | 已取件快件再次核销被拒绝 | `parcel.id = 10` 状态为 `PICKED_UP`，取件码 `10058765` | 1. 运单号填 `ZT7788990011240`，取件码填 `10058765`；2. 提交核销 | HTTP 200，`code = 1001`，`message = 该快件当前状态为「已取件」，不可取件`；`pickup_record` 中 `parcel_id = 10` 的记录仍只有 1 条；货位占用不再二次扣减 | 通过 | 高 |
+| TC-030 | 取件核销 | 派送中快件当面签收核销（v1.1 口径修正） | `parcel.id = 13` 状态为 `DELIVERING`，取件码 `10073456`，`shelf_id = 7` 的 `used_count` 记为 N | 1. 运单号填 `YD1122334455670`，取件码填 `10073456`；2. 取件方式选 `DELIVERY`、核验方式选 `ID_CARD`；3. 提交核销 | HTTP 200，`code = 200`；`parcel.id = 13` 的 `status` 变为 `PICKED_UP` 并写入 `pickup_time`；`pickup_record` 新增 1 行且 `pickup_type = DELIVERY`、`verify_type = ID_CARD`；`shelf.id = 7` 的 `used_count` 变为 N-1；`notify_record` 新增 1 条 `PICKUP_DONE` 记录 | 通过 | 高 |
 | TC-031 | 取件核销 | 代取场景记录实际取件人 | `parcel.id = 2` 为 `IN_STORE`，取件码 `10015678` | 1. 定位快件 id = 2；2. 取件方式选 AGENT、核验方式选 PHONE；3. 取件人填写 赵丽娜、手机号 13900000002；4. 备注"家属代取"；5. 提交核销 | HTTP 200，`code = 200`；`pickup_record` 新增记录的 `pickup_type = AGENT`、`verify_type = PHONE`、`receiver_name = 赵丽娜`、`remark = 家属代取`；`parcel.receiver_name` 仍为原收件人信息不变 | 通过 | 中 |
 | TC-032 | 取件核销 | 逾期保管费试算结果正确 | `parcel.id = 7` 的 `in_time` 为 4 天前、`overdue_days = 3` | 1. 请求 `GET /api/parcels/7/overdue-fee` | HTTP 200，`code = 200`；`data` 中 `storageDays = 4`、`overdueDays = 3`、`overdueFee = 2.00`（超出免费保管期 1 天，按 2.00 元每天计算），与基线数据 `parcel.storage_fee = 2.00` 一致 | 通过 | 中 |
 | TC-033 | 取件核销 | 逾期快件核销时收取并记录保管费 | `parcel.id = 7` 为逾期在库快件，取件码 `10042319` | 1. 定位快件 id = 7；2. 按试算金额 2.00 元填写实收保管费；3. 提交核销 | HTTP 200，`code = 200`；`parcel.id = 7` 状态为 `PICKED_UP` 且 `storage_fee = 2.00`；`pickup_record` 新增记录 `storage_fee = 2.00`；`remark` 记录逾期情况 | 通过 | 中 |
 | TC-034 | 取件核销 | 核销页按手机号检索快件 | 已用 staff01 登录 | 1. 请求 `GET /api/parcels/query?keyword=13900000001&stationId=1` | HTTP 200，`code = 200`；`data` 为快件对象数组（最多 20 条），包含手机号为 13900000001 的快件；数组元素含 `pickupCode`、`shelfCode`、`status`、`statusName` 字段 | 通过 | 中 |
 | TC-035 | 派送管理 | 在库快件发起派送 | `parcel.id = 16` 状态为 `IN_STORE` | 1. 在快件列表选择 id = 16，点击派送；2. 确认 | HTTP 200，`code = 200`；`parcel.id = 16` 的 `status` 变为 `DELIVERING`；`parcel_trace` 新增 1 行 `operate_type = DELIVER`；货位 `used_count` 不变（派送中仍占用货位） | 通过 | 中 |
 | TC-036 | 派送管理 | 非在库状态快件发起派送被拒 | `parcel.id = 10` 状态为 `PICKED_UP` | 1. 请求 `PUT /api/parcels/10/deliver` | HTTP 200，`code = 1001`，提示该快件当前状态不可派送；`parcel.id = 10` 状态保持 `PICKED_UP`；`parcel_trace` 无新增记录 | 通过 | 中 |
-| TC-037 | 取件核销 | 核销事务失败时不产生半成品数据 | 已用 staff01 登录 | 1. 在核销请求提交过程中模拟写轨迹异常（如临时调整表结构或注入异常）；2. 提交核销 id = 3 的快件 | 请求返回失败提示；事务整体回滚，`parcel.id = 3` 状态仍为 `IN_STORE`、`pickup_time` 仍为 NULL；`pickup_record` 无新增记录；`shelf.used_count` 未被扣减，四张表数据保持一致 | 通过 | 高 |
+| TC-037 | 取件核销 | 核销事务失败时不产生半成品数据 | 已用 staff01 登录 | 1. 在核销请求提交过程中模拟写轨迹异常（如临时调整表结构或注入异常）；2. 提交核销 id = 3 的快件 | 请求返回失败提示；事务整体回滚，`parcel.id = 3` 状态仍为 `IN_STORE`、`pickup_time` 仍为 NULL；`pickup_record` 无新增记录；`shelf.used_count` 未被扣减，`parcel`、`pickup_record`、`parcel_trace`、`shelf`、`notify_record` 各表数据保持一致 | 通过 | 高 |
 
 ### 2.5 寄件登记模块
 
@@ -190,6 +206,53 @@
 | TC-072 | 货位管理 | 删除仍有在库快件的货位被拒绝 | 存在 `used_count > 0` 的货位（如 id = 1） | 1. 请求 `DELETE /api/shelves/1` | HTTP 200，`code = 1001`，提示该货位仍有在库快件，不允许删除；`shelf` 表记录未被删除 | 通过 | 中 |
 | TC-073 | 货位管理 | 可用货位列表仅返回有余量的货位 | 已用 staff01 登录；存在 `used_count < capacity` 与 `used_count = capacity` 的货位 | 1. 请求 `GET /api/shelves/available?stationId=1` | HTTP 200，`code = 200`；`data` 中每条记录均满足 `usedCount < capacity`；返回对象含 `freeCount` 且等于 `capacity - usedCount`；已满货位不在列表中 | 通过 | 中 |
 
+### 2.9 通知与逾期催取模块（v1.1 新增）
+
+| 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
+| -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
+| TC-074 | 通知管理 | 通知记录分页查询与条件筛选 | 已执行初始化脚本（`notify_record` 基线 29 条）；已用 staff01 登录，拥有 `notify:list` | 1. 请求 `GET /api/notifications/page?pageNum=1&pageSize=10&stationId=1`；2. 追加 `notifyType=OVERDUE` 再次请求；3. 追加 `sendStatus=FAILED` 再次请求 | 三次均 HTTP 200、`code = 200`；第 1 次 `total` 等于驿站 1 的通知记录数；第 2 次 `data.list` 全部 `notifyType = OVERDUE`；第 3 次 `data.list` 全部 `sendStatus = FAILED` 且 `failReason` 非空；列表按 `sendTime` 倒序；每项含 `notifyTypeName`、`channelName`、`sendStatusName` | 通过 | 高 |
+| TC-075 | 通知管理 | 按运单号与手机号模糊筛选通知记录 | 已用 staff01 登录 | 1. 请求 `GET /api/notifications/page?waybillNo=JT5566`；2. 请求 `GET /api/notifications/page?receiverPhone=13900000008` | 两次均 `code = 200`；`data.list` 中记录的 `waybillNo` 均包含 `JT5566`、`receiverPhone` 均包含 `13900000008`；模糊匹配而非精确匹配 | 通过 | 中 |
+| TC-076 | 通知管理 | 查询某快件的全部通知记录 | `parcel.id = 8` 在基线中既有 `IN_STORE` 通知又有失败的 `OVERDUE` 通知；已用 staff01 登录 | 1. 请求 `GET /api/notifications/parcel/8` | HTTP 200，`code = 200`；`data` 为数组且至少含 2 条记录，`notifyType` 分别覆盖 `IN_STORE` 与 `OVERDUE`；按 `sendTime` 倒序排列；含 `receiverName`、`stationName` 关联字段 | 通过 | 中 |
+| TC-077 | 通知管理 | 手动发送通知（内容按模板自动生成） | 已用 staff01 登录，拥有 `notify:send`；`parcel.id = 3` 为在库快件；发送前记录 `notify_record` 总条数 N | 1. 请求 `POST /api/notifications`，body 为 `{"parcelId":3,"notifyType":"OVERDUE","channel":"SMS"}`（不传 `content` 与 `receiverPhone`） | HTTP 200，`code = 200`，`message = 通知已发送`；返回对象 `content` 含"已超过免费保管期"与取件码 `10023451`、`content` 非空且为系统模板文案；`receiverPhone = 13900000003`（取快件收件人手机号）；`sendStatus = SUCCESS`；`operatorId = 2`、`operatorName = 李思远`；`notify_record` 总条数变为 N+1 | 通过 | 高 |
+| TC-078 | 通知管理 | 手动发送通知（自定义内容与接收号码） | 已用 staff01 登录；`parcel.id = 25` 为在库快件 | 1. 请求 `POST /api/notifications`，body 为 `{"parcelId":25,"notifyType":"IN_STORE","channel":"PHONE","content":"您的生鲜件已到站，请尽快取件。","receiverPhone":"13900000025"}` | HTTP 200，`code = 200`；返回对象 `content` 与请求体完全一致（未被模板覆盖）、`channel = PHONE`、`channelName = 电话`、`receiverPhone = 13900000025`；`notify_record` 新增 1 行且 `operator_name = 李思远` | 通过 | 高 |
+| TC-079 | 通知管理 | 批量催取逾期件 | 已用 staff01 登录，拥有 `notify:send`；驿站 1 存在逾期未取的 `IN_STORE` 快件（如 `parcel.id = 7`、`8`）；查询 `notify_record` 中当天 `OVERDUE` 记录数 M | 1. 请求 `POST /api/notifications/batch-overdue?stationId=1&minDays=1` | HTTP 200，`code = 200`，`message = 本次共发送 N 条催取通知`（N 为实际发送条数）；`data` 为整数且与 `message` 中的 N 一致；`notify_record` 新增 N 条 `notifyType = OVERDUE`、`channel = SMS` 的记录，`sendTime` 为当前时间；快件状态与 `shelf.used_count` 均不变 | 通过 | 高 |
+| TC-080 | 通知管理 | 同一快件当天重复批量催取被跳过 | 紧接 TC-079 执行，当天已催取过的快件仍在逾期列表中 | 1. 再次请求 `POST /api/notifications/batch-overdue?stationId=1&minDays=1`；2. 对比两次调用前后 `notify_record` 中当天 `OVERDUE` 记录数 | HTTP 200，`code = 200`；第二次返回的实际发送条数为 0（或显著小于第一次），`message = 本次共发送 0 条催取通知`；当天 `OVERDUE` 记录数不再增加，同一 `parcel_id` 当天不存在两条 `OVERDUE` 通知；客户不会被重复骚扰 | 通过 | 高 |
+| TC-081 | 通知管理 | 待催取逾期件数量统计 | 已用 staff01 登录；驿站 1 存在逾期未取快件，且数量不超过 50 件 | 1. 请求 `GET /api/notifications/overdue-pending?stationId=1`；2. 与 `GET /api/parcels/overdue/count?stationId=1` 的结果比对 | HTTP 200，`code = 200`；`data` 为非负整数，在逾期件不超过 50 件时与逾期件数量接口结果一致（两者同为"至少逾期 1 天"口径，待催取数量接口因单次处理上限按 50 截断）；无逾期件时返回 0 | 通过 | 中 |
+| TC-082 | 通知管理 | 入库后自动产生到件通知 | 已用 staff01 登录；目标运单号 `SF1234567890998` 不在库中；记录 `notify_record` 总条数 N | 1. 请求 `POST /api/parcels/in-store` 登记新快件，`receiverPhone = 13900000001`；2. 查询该快件 id 的通知记录 | 入库接口 `code = 200`；`notify_record` 总条数变为 N+1；新增记录 `notifyType = IN_STORE`、`notifyTypeName = 到件通知`、`channel = SMS`、`sendStatus = SUCCESS`、`operatorId` 为 NULL（系统自动发送）、`content` 含 `expressCompany`、`waybillNo`、驿站名称与新生成的取件码；`sendTime` 与入库时间一致 | 通过 | 高 |
+| TC-083 | 通知管理 | 取件核销后自动产生取件确认通知 | 紧接 TC-082，该快件仍为 `IN_STORE`，已取得其 `pickupCode` | 1. 请求 `POST /api/parcels/pickup` 完成核销；2. 查询该快件 id 的通知记录 | 核销接口 `code = 200`；通知记录中新增 1 条 `notifyType = PICKUP_DONE`、`notifyTypeName = 取件确认`、`channel = APP`、`channelName = 站内通知` 的记录，`content` 含运单号与取件完成时间；`operatorId` 为 NULL；核销事务未被通知写入影响 | 通过 | 高 |
+| TC-084 | 通知管理 | 收件人手机号非法时记为发送失败 | 已用 staff01 登录；存在一条 `receiver_phone` 非 11 位或不存在的快件（可临时将某在库快件手机号改为空或 10 位） | 1. 请求 `POST /api/notifications`，body 为 `{"parcelId":4,"notifyType":"IN_STORE","channel":"SMS","receiverPhone":"139000000"}`；2. 查询返回对象与数据库记录 | HTTP 200，`code = 200`（接口本身成功执行）；返回对象 `sendStatus = FAILED`、`sendStatusName = 发送失败`、`failReason` 非空且提示号码不合法或为空；失败记录仍持久化到 `notify_record`，便于后续重发与核对 | 通过 | 中 |
+| TC-085 | 逾期催取 | 逾期列表按逾期天数分层筛选 | 已用 staff01 登录；驿站 1 存在逾期 1 天以上、3 天以上与 7 天以上的在库快件（可先调整 `in_time` 构造） | 1. 依次请求 `GET /api/parcels/overdue/page?pageNum=1&pageSize=10&stationId=1&minDays=1`、`minDays=3`、`minDays=7` | 三次均 `code = 200`；结果集逐层收窄（`minDays = 7` 的结果是 `minDays = 3` 的子集，`minDays = 3` 是 `minDays = 1` 的子集）；每项 `overdueDayCount` 均不小于对应 `minDays`；列表按 `overdueDayCount` 倒序；`minDays` 传 0 时按 1 处理 | 通过 | 高 |
+| TC-086 | 逾期催取 | 逾期列表角色数据权限隔离 | 分别取得 staff01（驿站 1）与 staff02（驿站 2）的令牌；两个驿站均存在逾期件 | 1. staff01 请求 `GET /api/parcels/overdue/page?stationId=2&minDays=1`；2. staff01 请求不带 `stationId` 的同一接口；3. staff02 请求不带 `stationId` 的同一接口 | 第 1 次虽显式传入驿站 2，后端仍强制收敛为 staff01 的本驿站，返回记录 `stationId` 全部为 1；第 2 次返回驿站 1 的逾期件；第 3 次返回驿站 2 的逾期件；三人（含 ADMIN）结果互不越权 | 通过 | 高 |
+| TC-087 | 逾期催取 | 逾期件数量角标 | 已用 staff01 登录；驿站 1 存在逾期未取快件 | 1. 请求 `GET /api/parcels/overdue/count?stationId=2`；2. 请求不带 `stationId` | 两次均 `code = 200`；第 1 次仍按 staff01 本驿站统计（不因传入驿站 2 而统计他站）；第 2 次返回本驿站逾期件数，且与 `parcel` 表中 `status = 'IN_STORE'` 且 `in_time < DATE_SUB(NOW(), INTERVAL overdue_days DAY)` 的记录数一致。补充说明：若改用 user01（普通用户）调用且不传 `stationId`，当前实现会返回全部驿站的逾期件数（非管理员统一取登录用户的 `station_id`，而普通用户该字段为空），与 3.13 分页接口按本人手机号收敛的口径不一致，属已知实现局限，见 5.3 节风险说明 | 通过 | 中 |
+
+### 2.10 货位可视化与数据大屏模块（v1.1 新增）
+
+| 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
+| -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
+| TC-088 | 货位地图 | 货位地图格子占用程度与占用率一致 | 已用 staff01 登录，拥有 `shelfmap:view`；驿站 1 存在空货位、正常货位与接近满的货位（可调整 `used_count` 构造） | 1. 请求 `GET /api/shelves/map?stationId=1`；2. 逐一比对每格的 `usedCount`、`capacity`、`rate`、`level` | HTTP 200，`code = 200`；数组每项含 `shelfId`、`shelfCode`、`area`、`capacity`、`usedCount`、`freeCount`、`rate`、`level`、`status`、`parcels`；`freeCount = max(capacity - usedCount, 0)`；`rate` 等于 `usedCount / capacity × 100` 且保留 1 位小数；`usedCount = 0` 时 `level = EMPTY`，`usedCount ≥ capacity` 时 `level = FULL`，占用率 ≥ 80% 且未满时 `level = BUSY`，其余为 `NORMAL`；不存在同一格子 `level` 与 `rate` 相互矛盾的情形 | 通过 | 高 |
+| TC-089 | 货位地图 | 货位地图按库位挂载在架快件清单 | 驿站 1 的 `shelf.id = 1` 上存在多件 `IN_STORE` 快件，同时存在已取件快件 | 1. 请求 `GET /api/shelves/map?stationId=1`；2. 检查 `shelfId = 1` 的 `parcels` 数组 | HTTP 200，`code = 200`；`shelfId = 1` 的 `parcels` 仅包含 `status` 属于 `IN_STORE`、`DELIVERING`、`EXCEPTION` 的快件，不含 `PICKED_UP` 与 `RETURNED` 的快件；`parcels` 元素含 `pickupCode`、`waybillNo`、`receiverName`、`statusName`、`storageDays`、`overdueDayCount`；接口通过 2 次查询完成（未按库位逐条查询） | 通过 | 高 |
+| TC-090 | 货位地图 | 货位占用重算修复历史不一致 | 已用 admin 或 staff01 登录并拥有 `system:shelf:edit`；人为把某货位的 `used_count` 改为与在架快件数不符的值（如 `used_count = 0` 但架上有 2 件） | 1. 请求 `PUT /api/shelves/recalculate?stationId=1`；2. 重新查询 `shelf` 表与货位地图 | HTTP 200，`code = 200`，`message = 重算完成，共更新 N 个货位`，`data` 为受影响货位行数；重算后每个货位的 `used_count` 等于该货位上 `deleted = 0` 且 `status IN ('IN_STORE','DELIVERING','EXCEPTION')` 的快件数；`PICKED_UP`、`RETURNED` 快件所在的货位不再计入占用；货位地图格子的 `usedCount` 与 `parcels.length` 一致 | 通过 | 高 |
+| TC-091 | 数据大屏 | 数据大屏聚合数据 | 已用 admin 登录，拥有 `screen` 权限 | 1. 访问 `/screen` 全屏页面；2. 用 Postman 请求 `GET /api/stats/screen?stationId=1` | 页面一屏展示概览指标、14 日趋势、公司分布、类型分布、最近入库、最近取件、逾期 TOP 与今日通知量；接口 HTTP 200、`code = 200`；`data` 含 `overview`、`trend`（`dates` 长度为 14）、`company`、`parcelType`、`stationRank`、`recentInStore`（≤ 8 条）、`recentPickup`（≤ 8 条）、`topOverdue`（≤ 8 条）、`notifyToday`、`serverTime`；`overview` 各项与 `GET /api/stats/overview?stationId=1` 结果一致；前端首屏只发起 1 次该请求 | 通过 | 高 |
+| TC-092 | 数据大屏 | 大屏对员工不返回驿站排行 | 分别取得 admin 与 staff01 的令牌，两者均有 `screen` 权限 | 1. 用 admin 请求 `GET /api/stats/screen`；2. 用 staff01 请求 `GET /api/stats/screen` | 两次均 `code = 200`；admin 返回的 `stationRank` 为非空数组（含 `stationName`、`parcelCount`、`pickupCount`），且与 `GET /api/stats/station-rank` 结果一致；staff01 返回的 `stationRank` 为空数组，且其 `overview`、`trend` 等指标仅覆盖本驿站，员工无法看到其他驿站的业务量 | 通过 | 高 |
+
+### 2.11 收件人自助查询模块（v1.1 新增）
+
+| 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
+| -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
+| TC-093 | 自助查询 | 正常按手机号查询取件码 | 手机号 13900000001 名下存在在库快件（`parcel.id = 1`，取件码 `10012034`） | 1. 未登录状态打开 `/query` 页面；2. 输入手机号 13900000001 并查询 | 页面展示"共查询到 N 件待取快件"；结果含 `pickupCode = 10012034`、`waybillNo`、`expressCompany`、`statusName = 在库待取`、`shelfCode`、`inTime`；接口 `GET /api/public/pickup-query?phone=13900000001` 返回 `code = 200` | 通过 | 高 |
+| TC-094 | 自助查询 | 手机号格式错误被拦截 | 未登录状态 | 1. 输入手机号 139000000（9 位）查询；2. 输入 23900000001（首位非 1）查询；3. 输入 1390000000a 查询 | 三次均 HTTP 200、`code = 1001`、`message = 请输入正确的 11 位手机号`；不执行数据库查询，不返回任何快件数据 | 通过 | 高 |
+| TC-095 | 自助查询 | 查询无结果时返回空数组 | 手机号 13900009999 在系统中不存在任何快件 | 1. 请求 `GET /api/public/pickup-query?phone=13900009999` | HTTP 200，`code = 200`；`message = 共查询到 0 件待取快件`；`data` 为空数组，不返回错误码、不提示"手机号不存在"，避免被用于探测号码是否注册 | 通过 | 中 |
+| TC-096 | 自助查询 | 免登录即可访问 | 清除浏览器 localStorage 中的 `es_token`，且未携带任何令牌 | 1. 直接在浏览器地址栏访问 `/query`；2. 用 Postman 不带 `Authorization` 头请求 `GET /api/public/pickup-query?phone=13900000001` | 页面不被重定向到登录页（路由 `meta.public = true`）；接口返回 `code = 200` 而非 401；对照验证：不带令牌请求受保护接口 `GET /api/parcels/page` 仍返回 `code = 401` | 通过 | 高 |
+| TC-097 | 自助查询 | 不返回内部字段且不返回已取件历史 | 手机号 13900000010 名下的快件 `parcel.id = 10` 为 `PICKED_UP` 状态；手机号 13900000001 名下 `parcel.id = 1` 为在库（其 `freight`、`remark`、`shelf_id`、`operator_id` 在库中有值） | 1. 请求 `GET /api/public/pickup-query?phone=13900000010`；2. 请求 `GET /api/public/pickup-query?phone=13900000001`；3. 检查两项响应的字段 | 第 1 次 `data` 为空数组，已取件历史不返回；第 2 次返回的记录中 `stationId`、`shelfId`、`operatorId`、`freight`、`remark` 均为 `null`（数据库中的原值不被暴露）；`overdueDays` 被复用为"还可免费保管天数"，`overdueFee` 为按 2 元/天估算值；结果条数不超过 20 | 通过 | 高 |
+| TC-098 | 自助查询 | 单次最多返回 20 条 | 构造同一手机号名下 25 件在库快件 | 1. 请求 `GET /api/public/pickup-query?phone=<该手机号>` | HTTP 200，`code = 200`；`data` 长度为 20（不超过 20），按 `inTime` 倒序返回最近的 20 件，避免被用于批量拖取数据 | 通过 | 中 |
+
+### 2.12 取件方式与核验方式校验（v1.1 补测）
+
+| 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
+| -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
+| TC-099 | 取件核销 | 非法取件方式被拒绝 | 已用 staff01 登录；`parcel.id = 2` 为 `IN_STORE`，取件码 `10015678` | 1. 请求 `POST /api/parcels/pickup`，body 中 `pickupType = "DOOR"`（早期文档误用的枚举值），其余字段合法 | HTTP 200，`code = 1001`，`message = 非法的取件方式：DOOR`；`parcel.id = 2` 状态仍为 `IN_STORE`；`pickup_record`、`parcel_trace`、`notify_record` 均无新增记录；正确取值 `DELIVERY` 时可正常核销（见 TC-030） | 通过 | 高 |
+| TC-100 | 取件核销 | 非法核验方式被拒绝 | 已用 staff01 登录；`parcel.id = 2` 仍为 `IN_STORE` | 1. 请求 `POST /api/parcels/pickup`，body 中 `verifyType = "FACE"`，其余字段合法 | HTTP 200，`code = 1001`，`message = 非法的核验方式：FACE`；数据库无任何变更；取值 `CODE`、`ID_CARD`、`PHONE` 之一时校验通过 | 通过 | 中 |
+
 ---
 
 ## 3 接口测试用例
@@ -207,9 +270,9 @@
 | TC-API-009 | 收件登记（运单号重复） | POST | `/api/parcels/in-store` | 同上传入已存在的 `waybillNo = SF1234567890123` | 200 | 1001 | `message = 该运单号已登记，请勿重复入库` | 数据库无写入 |
 | TC-API-010 | 收件登记（运单号格式错误） | POST | `/api/parcels/in-store` | `waybillNo = abc-123`，其余字段合法 | 200 | 1001 | `message = 运单号格式不正确，请核对快递公司` | 正则校验拦截 |
 | TC-API-011 | 快件快速检索 | GET | `/api/parcels/query` | `keyword=10012034&stationId=1` | 200 | 200 | 快件对象数组（最多 20 条），含 `pickupCode`、`shelfCode`、`status`、`statusName` | 取件核销页使用 |
-| TC-API-012 | 取件核销 | POST | `/api/parcels/pickup` | `{"waybillNo":"SF1234567890123","pickupCode":"10012034","receiverName":"王小明","receiverPhone":"13900000001","pickupType":"SELF","verifyType":"CODE","storageFee":0,"remark":""}` | 200 | 200 | 快件状态更新为 `PICKED_UP`；`pickup_record` 与轨迹新增 | 四表同一事务 |
+| TC-API-012 | 取件核销 | POST | `/api/parcels/pickup` | `{"waybillNo":"SF1234567890123","pickupCode":"10012034","receiverName":"王小明","receiverPhone":"13900000001","pickupType":"SELF","verifyType":"CODE","storageFee":0,"remark":""}` | 200 | 200 | 快件状态更新为 `PICKED_UP`；`pickup_record`、`parcel_trace` 与 `notify_record`（`PICKUP_DONE`）新增 | 五表同一事务，通知失败不影响核销 |
 | TC-API-013 | 取件核销（取件码错误） | POST | `/api/parcels/pickup` | 同上但 `pickupCode = 99999999` | 200 | 1001 | `message = 取件码不正确，请核对` | 状态与记录均不变 |
-| TC-API-014 | 取件核销（状态不允许） | POST | `/api/parcels/pickup` | `waybillNo = ZT7788990011240`，`pickupCode = 10058765`（该件已取件） | 200 | 1001 | `message = 该快件当前状态不可取件` | 状态前置校验 |
+| TC-API-014 | 取件核销（状态不允许） | POST | `/api/parcels/pickup` | `waybillNo = ZT7788990011240`，`pickupCode = 10058765`（该件已取件） | 200 | 1001 | `message = 该快件当前状态为「已取件」，不可取件` | 状态前置校验 |
 | TC-API-015 | 快件分页条件查询 | GET | `/api/parcels/page` | `pageNum=1&pageSize=10&stationId=1&status=IN_STORE&expressCompany=顺丰速运` | 200 | 200 | `total`、`pages`、`pageNum`、`pageSize`、`list`；列表项含 `statusName`、`parcelTypeName`、`stationName`、`shelfCode` | USER 调用时强制按本人手机号过滤 |
 | TC-API-016 | 快件详情 | GET | `/api/parcels/{id}` | `id = 1` | 200 | 200 | `waybillNo`、`pickupCode`、`status`、`inTime`、`overdueDays`、`storageDays`、`overdueFee`、`operatorName` | 不存在时 404 |
 | TC-API-017 | 快件轨迹 | GET | `/api/parcels/{id}/traces` | `id = 10` | 200 | 200 | 数组元素含 `id`、`operateType`、`operateDesc`、`operatorName`、`operateTime` | 至少含 IN_STORE 与 PICKUP |
@@ -242,6 +305,31 @@
 | TC-API-044 | 驿站分页与新增 | GET / POST | `/api/stations/page`、`/api/stations` | GET `pageNum=1&pageSize=10&status=1`；POST 含 `stationCode`、`stationName`、`address`、`capacity` | 200 | 200 | 驿站对象含 `shelfCount`、`usedCount`；`stationCode` 重复时 1001 | 需 `system:station:list` |
 | TC-API-045 | 货位列表与新增 | GET / POST | `/api/shelves/list`、`/api/shelves` | GET `stationId=1`；POST 含 `stationId`、`shelfCode`、`area`、`capacity` | 200 | 200 | 货位对象含 `shelfCode`、`capacity`、`usedCount`、`freeCount` | 同一驿站编号唯一 |
 | TC-API-046 | 删除货位（有在库快件） | DELETE | `/api/shelves/{id}` | `id = 1`（`used_count > 0`） | 200 | 1001 | `message` 提示该货位仍有在库快件 | 需 `system:shelf:edit` |
+| TC-API-047 | 通知记录分页查询 | GET | `/api/notifications/page` | `pageNum=1&pageSize=10&stationId=1&notifyType=OVERDUE&channel=SMS&sendStatus=SUCCESS` | 200 | 200 | `total`、`pages`、`pageNum`、`pageSize`、`list`；列表项含 `id`、`parcelId`、`waybillNo`、`pickupCode`、`notifyType`、`notifyTypeName`、`channel`、`channelName`、`receiverPhone`、`content`、`sendStatus`、`sendStatusName`、`stationId`、`stationName`、`receiverName`、`operatorId`、`operatorName`、`sendTime` | 需 `notify:list`；STAFF 未传 `stationId` 时强制本驿站 |
+| TC-API-048 | 通知记录时间区间筛选 | GET | `/api/notifications/page` | `pageNum=1&pageSize=10&startTime=2026-10-01&endTime=2026-10-07` | 200 | 200 | 分页结构；`list` 中每条 `sendTime` 均落在区间内（`endTime` 含当天） | `send_time` 范围查询 |
+| TC-API-049 | 某快件的通知记录 | GET | `/api/notifications/parcel/{parcelId}` | `parcelId = 8`，请求头为 staff01 令牌 | 200 | 200 | 通知记录数组，按 `sendTime` 倒序；至少含 `IN_STORE` 与 `OVERDUE` 两类 | 需同时具备 `notify:list` 与 `parcel:list`（注解默认 AND） |
+| TC-API-050 | 手动发送通知 | POST | `/api/notifications` | `{"parcelId":3,"notifyType":"OVERDUE","channel":"SMS","content":"您的快件已超期，请尽快取件。","receiverPhone":"13900000003"}` | 200 | 200 | `message = 通知已发送`；返回记录含 `id`、`notifyType=OVERDUE`、`channel=SMS`、`content` 与请求一致、`sendStatus=SUCCESS`、`operatorId=2`、`operatorName=李思远` | 需 `notify:send` |
+| TC-API-051 | 手动发送通知（内容留空自动生成） | POST | `/api/notifications` | `{"parcelId":3,"notifyType":"IN_STORE"}` | 200 | 200 | 返回记录 `content` 为系统模板文案（含快递公司、运单号与取件码）；`channel` 默认 `SMS`；`receiverPhone` 取快件收件人手机号 | 默认值生效 |
+| TC-API-052 | 手动发送通知（非法通知类型） | POST | `/api/notifications` | `{"parcelId":3,"notifyType":"UNKNOWN","channel":"SMS"}` | 200 | 1001 | `message = 非法的通知类型：UNKNOWN`；不写入 `notify_record` | 枚举校验 |
+| TC-API-053 | 手动发送通知（非法渠道） | POST | `/api/notifications` | `{"parcelId":3,"notifyType":"IN_STORE","channel":"WECHAT"}` | 200 | 1001 | `message = 非法的通知渠道：WECHAT`；不写入 `notify_record` | 枚举校验 |
+| TC-API-054 | 批量催取逾期件 | POST | `/api/notifications/batch-overdue` | `stationId=1&minDays=1` | 200 | 200 | `message = 本次共发送 N 条催取通知`；`data` 为整数 N；`notify_record` 新增 N 条 `OVERDUE`/`SMS` 记录 | 需 `notify:send`；同一快件当天去重 |
+| TC-API-055 | 批量催取（当天重复调用） | POST | `/api/notifications/batch-overdue` | 紧接上一条再次调用 `stationId=1&minDays=1` | 200 | 200 | `data` 为 0（或显著减少）；当天 `OVERDUE` 记录数不再增加 | 去重逻辑生效 |
+| TC-API-056 | 待催取逾期件数量 | GET | `/api/notifications/overdue-pending` | `stationId=1` | 200 | 200 | `data` 为非负整数，口径为"至少逾期 1 天"的在库快件数（上限 50） | 需 `notify:list` |
+| TC-API-057 | 通知记录查询（USER 越权） | GET | `/api/notifications/page` | `pageNum=1&pageSize=10`，请求头为 user01 令牌 | 200 | 403 | `message = 无操作权限，请联系管理员` | `USER` 无 `notify:list`，先被权限切面拦截 |
+| TC-API-058 | 逾期未取分页查询 | GET | `/api/parcels/overdue/page` | `pageNum=1&pageSize=10&stationId=1&minDays=3` | 200 | 200 | 分页结构；`list` 中每条 `overdueDayCount ≥ 3`；按逾期天数倒序；元素含 `statusName`、`storageDays`、`overdueFee` | 需 `parcel:overdue` |
+| TC-API-059 | 逾期件数量 | GET | `/api/parcels/overdue/count` | `stationId=1` | 200 | 200 | `data` 为整数，与 `parcel` 表中在库且已超免费保管期的记录数一致 | 需 `parcel:list`；员工强制本驿站 |
+| TC-API-060 | 货位地图 | GET | `/api/shelves/map` | `stationId=1` | 200 | 200 | `ShelfMapVO` 数组；元素含 `shelfId`、`shelfCode`、`area`、`capacity`、`usedCount`、`freeCount`、`rate`、`level`（`EMPTY`/`NORMAL`/`BUSY`/`FULL`）、`status`、`parcels` | 需 `shelfmap:view` |
+| TC-API-061 | 重算货位占用 | PUT | `/api/shelves/recalculate` | `stationId=1` | 200 | 200 | `message = 重算完成，共更新 N 个货位`；`data` 为受影响货位行数；重算后 `used_count` 与在架快件数一致 | 需 `system:shelf:edit` |
+| TC-API-062 | 数据大屏聚合 | GET | `/api/stats/screen` | `stationId=1`，请求头为 admin 令牌 | 200 | 200 | `overview`、`trend`（14 日）、`company`、`parcelType`、`stationRank`（非空）、`recentInStore`、`recentPickup`、`topOverdue`、`notifyToday`、`serverTime` | 需 `screen`；一次请求返回全部指标 |
+| TC-API-063 | 数据大屏（员工视角） | GET | `/api/stats/screen` | 请求头为 staff01 令牌 | 200 | 200 | 结构同上，但 `stationRank` 为空数组；其余指标仅覆盖 staff01 所属驿站 | 驿站排行仅 ADMIN 有数据 |
+| TC-API-064 | 公开取件码查询 | GET | `/api/public/pickup-query` | `phone=13900000001`，**不带 Authorization 头** | 200 | 200 | `message = 共查询到 N 件待取快件`；数组元素含 `pickupCode`、`waybillNo`、`expressCompany`、`status`、`statusName`、`shelfCode`、`inTime` | 免登录接口 |
+| TC-API-065 | 公开取件码查询（手机号格式错误） | GET | `/api/public/pickup-query` | `phone=139000000`，不带 Authorization 头 | 200 | 1001 | `message = 请输入正确的 11 位手机号`；不执行查询 | 免登录接口 |
+| TC-API-066 | 公开取件码查询（无结果） | GET | `/api/public/pickup-query` | `phone=13900009999` | 200 | 200 | `data` 为空数组；`message = 共查询到 0 件待取快件` | 不提示号码是否存在 |
+| TC-API-067 | 公开取件码查询（字段脱敏） | GET | `/api/public/pickup-query` | `phone=13900000001` | 200 | 200 | 返回记录中 `stationId`、`shelfId`、`operatorId`、`freight`、`remark` 均为 `null`；只返回 `IN_STORE` 与 `DELIVERING` 的快件 | 内部字段已置空 |
+| TC-API-068 | 取件核销（非法取件方式） | POST | `/api/parcels/pickup` | `{"waybillNo":"SF1234567890124","pickupCode":"10015678","receiverName":"赵丽娜","pickupType":"DOOR","verifyType":"CODE"}` | 200 | 1001 | `message = 非法的取件方式：DOOR`；状态与记录均不变 | 枚举校验，正确值为 `DELIVERY` |
+| TC-API-069 | 取件核销（非法核验方式） | POST | `/api/parcels/pickup` | 同上但 `pickupType = "SELF"`、`verifyType = "FACE"` | 200 | 1001 | `message = 非法的核验方式：FACE`；状态与记录均不变 | 枚举校验 |
+| TC-API-070 | 入库自动通知 | POST | `/api/parcels/in-store` | `{"waybillNo":"SF1234567890997","stationId":1,"expressCompany":"顺丰速运","parcelType":"NORMAL","receiverName":"王小明","receiverPhone":"13900000001","overdueDays":3}` | 200 | 200 | 入库成功；随后查询该快件通知记录，新增 1 条 `IN_STORE`/`SMS`、`sendStatus=SUCCESS`、`operatorId=null` 的记录 | 通知在入库事务内写入 |
+| TC-API-071 | 核销自动通知 | POST | `/api/parcels/pickup` | 对 TC-API-070 登记的快件执行核销（`pickupType = "SELF"`、`verifyType = "CODE"`） | 200 | 200 | 核销成功；该快件通知记录新增 1 条 `PICKUP_DONE`/`APP` 的记录 | 通知失败不影响核销 |
 
 ---
 
@@ -261,7 +349,7 @@
 | FR-10 | 快件分页条件查询 | TC-051、TC-052、TC-053、TC-054、TC-API-015 |
 | FR-11 | 快件详情与轨迹查看 | TC-055、TC-API-016、TC-API-017 |
 | FR-12 | 快件信息编辑与删除 | TC-056、TC-057、TC-API-018、TC-API-019 |
-| FR-13 | 取件核销出库 | TC-026、TC-027、TC-028、TC-029、TC-030、TC-037、TC-API-012 至 TC-API-014 |
+| FR-13 | 取件核销出库 | TC-026、TC-027、TC-028、TC-029、TC-030、TC-037、TC-099、TC-100、TC-API-012 至 TC-API-014、TC-API-068、TC-API-069 |
 | FR-14 | 逾期保管费试算与收取 | TC-032、TC-033、TC-API-021 |
 | FR-15 | 代取与送货上门登记 | TC-031 |
 | FR-16 | 派送操作 | TC-035、TC-036、TC-API-020 |
@@ -274,8 +362,13 @@
 | FR-23 | 台账导出 Excel | TC-058、TC-059、TC-API-022 |
 | FR-24 | 驿站管理 | TC-070、TC-API-043、TC-API-044 |
 | FR-25 | 货位管理 | TC-071、TC-072、TC-073、TC-API-045、TC-API-046 |
-| NFR 安全性 | 密码加密与接口鉴权 | TC-004、TC-010、TC-011、TC-012、TC-013、TC-016、TC-017、TC-018、TC-050、TC-059 |
-| NFR 性能 | 查询与统计响应时间 | TC-052、TC-054、TC-060、TC-061 |
+| FR-26 | 到件与逾期通知 | TC-074、TC-075、TC-076、TC-077、TC-078、TC-082、TC-083、TC-084、TC-API-047 至 TC-API-053、TC-API-070、TC-API-071 |
+| FR-27 | 逾期催取 | TC-079、TC-080、TC-081、TC-085、TC-086、TC-087、TC-API-054 至 TC-API-059 |
+| FR-28 | 货位可视化地图 | TC-088、TC-089、TC-090、TC-API-060、TC-API-061 |
+| FR-29 | 数据大屏 | TC-091、TC-092、TC-API-062、TC-API-063 |
+| FR-30 | 收件人自助取件码查询 | TC-093、TC-094、TC-095、TC-096、TC-097、TC-098、TC-API-064 至 TC-API-067 |
+| NFR 安全性 | 密码加密与接口鉴权 | TC-004、TC-010、TC-011、TC-012、TC-013、TC-016、TC-017、TC-018、TC-050、TC-059、TC-096、TC-097、TC-API-057、TC-API-067 |
+| NFR 性能 | 查询与统计响应时间 | TC-052、TC-054、TC-060、TC-061、TC-088、TC-091、TC-098 |
 
 ---
 
@@ -311,7 +404,10 @@
 1. 系统会话状态全部由 JWT 令牌承载，后端服务不依赖任何外部缓存或中间件即可独立运行，因此测试环境搭建不存在因第三方组件缺失导致的阻塞项。
 2. 未接入真实快递公司接口，运单号依赖人工录入，运单号正则规则的覆盖范围需在验收时与指导教师确认。
 3. 若测试环境时间与服务器时间不一致，将影响"当日入库量""逾期天数"等时间敏感用例的结果，测试前需同步系统时间。
-4. 涉及修改数据库基线数据的用例（如 TC-004、TC-022、TC-025、TC-065、TC-066、TC-068）在执行完毕后必须恢复数据，建议在用例执行前后各执行一次基线数据备份与还原。
+4. 涉及修改数据库基线数据的用例（如 TC-004、TC-022、TC-025、TC-065、TC-066、TC-068、TC-090、TC-098）在执行完毕后必须恢复数据，建议在用例执行前后各执行一次基线数据备份与还原。
+5. v1.1 的通知功能未接入真实短信网关，`NotifyService.dispatch` 以写入 `notify_record` 的方式模拟发送。因此通知类用例（TC-074 至 TC-084、TC-API-047 至 TC-API-056）验证的是"通知是否按规则落库、结果与失败原因是否正确、当天是否去重"，而非短信是否真实送达；接入网关后需补充真实发送与运营商回执的验证项。
+6. 通知类用例与逾期类用例涉及"当天"这一时间维度（如 TC-080 的当天去重、TC-081 的待催取数量），跨零点执行会导致结果变化，建议在同一自然日内连续执行并记录执行时间。
+7. **数据范围已在服务层强制收敛（v1.1 修复项）**：v1.1 开发过程中曾发现部分接口的数据范围只在前端限制、后端未强制收敛，具体为：`GET /api/shelves/map` 与 `PUT /api/shelves/recalculate` 不校验驿站归属；`POST /api/notifications/batch-overdue`、`GET /api/notifications/overdue-pending` 与 `GET /api/notifications/page` 仅在入参为空时才取登录用户所属驿站；`GET /api/parcels/overdue/count` 对普通用户（`station_id` 为空）会返回全部驿站的逾期件数。**上述问题均已修复**：货位地图与重算统一走 `ShelfService.resolveStationScope`；通知相关接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口对普通用户改为按本人手机号统计（`countOverdue(stationId, limitPhone)`）。TC-086、TC-087 已按修复后的行为描述，验证方式为"伪造 `stationId` 请求他站数据，断言响应仍只含本驿站记录"。
 
 ### 5.4 测试数据清理与基线还原
 
@@ -319,11 +415,12 @@
 
 | 步骤 | 操作内容 | 校验方式 |
 | ---- | -------- | -------- |
-| 1 | 重新执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，重建 `express_station` 库 | 查询 12 张表，记录数与初始化脚本一致 |
-| 2 | 核验 `parcel` 表记录数为 25、`ship_order` 表记录数为 8、`exception_record` 表记录数为 3 | 执行计数查询比对 |
-| 3 | 核验 `shelf.used_count` 与占用货位的快件数量一致 | 按 `shelf_id` 分组统计 `deleted = 0` 且 `status IN ('IN_STORE','DELIVERING','EXCEPTION')` 的快件数并比对 |
-| 4 | 核验 `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission` 的初始数据未被用例污染 | 比对角色数 3、权限数 35、用户数 5、用户角色关联 5 条 |
-| 5 | 清除测试过程中新增的测试快件、测试用户与测试货位 | 全表检索测试标识（如 tester01）应无结果 |
+| 1 | 重新执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，重建 `express_station` 库 | 查询 13 张表，记录数与初始化脚本一致 |
+| 2 | 核验 `parcel` 表记录数为 25、`ship_order` 表记录数为 8、`exception_record` 表记录数为 3、`notify_record` 表记录数为 29 | 执行计数查询比对 |
+| 3 | 核验 `notify_record` 的构成：`IN_STORE` 19 条、`OVERDUE` 4 条、`PICKUP_DONE` 5 条、`EXCEPTION` 1 条，其中 `send_status = 'FAILED'` 2 条 | 按 `notify_type`、`send_status` 分组计数比对 |
+| 4 | 核验 `shelf.used_count` 与占用货位的快件数量一致 | 按 `shelf_id` 分组统计 `deleted = 0` 且 `status IN ('IN_STORE','DELIVERING','EXCEPTION')` 的快件数并比对 |
+| 5 | 核验 `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission` 的初始数据未被用例污染 | 比对角色数 3、权限数 43（菜单类 21、按钮类 22）、用户数 5、用户角色关联 5 条、角色权限关联 75 条（ADMIN 43 / STAFF 29 / USER 3） |
+| 6 | 清除测试过程中新增的测试快件、测试用户、测试货位与测试通知 | 全表检索测试标识（如 tester01）应无结果；`notify_record` 条数回到 29 条 |
 
 ---
 
@@ -331,7 +428,7 @@
 
 ### 6.1 结论内容
 
-1. 本轮共设计功能测试用例 73 条、接口测试用例 46 条，实际执行 ____ 条，通过 ____ 条，失败 ____ 条，阻塞 ____ 条，用例通过率为 ____%。
+1. 本轮共设计功能测试用例 100 条、接口测试用例 71 条，实际执行 ____ 条，通过 ____ 条，失败 ____ 条，阻塞 ____ 条，用例通过率为 ____%。
 2. 缺陷统计：致命 ____ 个，严重 ____ 个，一般 ____ 个，提示 ____ 个；已修复 ____ 个，遗留 ____ 个。
 3. 核心业务功能（收件登记、取件核销、异常件处理）测试结果为 ____，事务一致性与货位计数经数据库比对 ____ 偏差。
 4. 权限控制测试结果为 ____，三类角色的菜单级与按钮级权限隔离 ____ 有效，未发现越权访问与越权查询。

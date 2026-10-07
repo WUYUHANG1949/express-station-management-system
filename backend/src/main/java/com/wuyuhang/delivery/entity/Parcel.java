@@ -123,6 +123,10 @@ public class Parcel implements Serializable {
     private Integer storageDays;
 
     @TableField(exist = false)
+    @Schema(description = "逾期天数（已超过免费保管期的天数，未逾期为 0）")
+    private Integer overdueDayCount;
+
+    @TableField(exist = false)
     @Schema(description = "逾期保管费(元)")
     private BigDecimal overdueFee;
 }

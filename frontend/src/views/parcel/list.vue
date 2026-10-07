@@ -114,7 +114,7 @@
           <span :class="{ 'text-danger': Number(row.overdueFee) > 0 }">{{ formatMoney(row.overdueFee, true) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
           <div class="table-actions">
             <el-button link type="primary" size="small" @click="openDetail(row)">详情</el-button>
@@ -129,6 +129,9 @@
               @click="handleDeliver(row)"
             >
               派送
+            </el-button>
+            <el-button v-perm="'parcel:print'" link type="primary" size="small" @click="handlePrintTicket(row)">
+              打印小票
             </el-button>
             <el-button v-perm="'parcel:delete'" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </div>
@@ -254,19 +257,25 @@
         <el-button type="primary" :loading="editSubmitting" @click="submitEdit">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- ==================== 取件小票（仅用于打印，放在屏幕外，不影响布局） ==================== -->
+    <div class="ticket-holder">
+      <ParcelTicket ref="ticketRef" :parcel="ticketParcel" />
+    </div>
   </PageContainer>
 </template>
 
 <script setup>
 /**
  * 快件查询页
- * 功能：多条件筛选 + 分页表格 + 详情（含轨迹时间线）+ 编辑 + 派送 + 删除 + 导出台账
- * 权限：parcel:edit / parcel:deliver / parcel:delete / parcel:export 通过 v-perm 控制
+ * 功能：多条件筛选 + 分页表格 + 详情（含轨迹时间线）+ 编辑 + 派送 + 打印取件小票 + 删除 + 导出台账
+ * 权限：parcel:edit / parcel:deliver / parcel:print / parcel:delete / parcel:export 通过 v-perm 控制
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Refresh, RefreshLeft, Search } from '@element-plus/icons-vue'
 import PageContainer from '@/components/PageContainer.vue'
+import ParcelTicket from '@/components/ParcelTicket.vue'
 import {
   deleteParcel,
   deliverParcel,
@@ -650,6 +659,25 @@ async function handleExport() {
   }
 }
 
+/* ------------------------------------------------------------------
+ * 打印取件小票（v1.1 新增）
+ * ---------------------------------------------------------------- */
+/** 取件小票组件实例 */
+const ticketRef = ref(null)
+/** 待打印的快件（设为行数据后调用子组件的 print()） */
+const ticketParcel = ref(null)
+
+/**
+ * 打印某一行的取件小票
+ * 先把行数据交给小票组件，等 DOM 更新后再触发打印（打印内容在隐藏 iframe 中生成）
+ * @param {Object} row 表格行数据
+ */
+async function handlePrintTicket(row) {
+  ticketParcel.value = { ...row }
+  await nextTick()
+  ticketRef.value?.print()
+}
+
 onMounted(() => {
   loadStations()
   loadData()
@@ -673,9 +701,9 @@ onMounted(() => {
 .detail__trace-title {
   margin: 20px 0 12px;
   padding-left: 8px;
-  border-left: 4px solid #2563eb;
+  border-left: 4px solid var(--es-primary);
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--es-text-1);
 }
 
 .trace-item__tag {
@@ -684,7 +712,16 @@ onMounted(() => {
 
 .trace-item__desc {
   font-size: 13px;
-  color: #303133;
+  color: var(--es-text-1);
   margin-bottom: 2px;
+}
+
+/* 取件小票容器：放在屏幕外，仅作为打印数据源，不参与页面布局 */
+.ticket-holder {
+  position: fixed;
+  top: 0;
+  left: -9999px;
+  z-index: -1;
+  pointer-events: none;
 }
 </style>

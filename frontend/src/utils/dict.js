@@ -106,13 +106,15 @@ export const HANDLE_STATUS_NAME = {
 
 /* ------------------------------------------------------------------
  * 取件方式 / 核验方式（契约 3.3）
+ * 注意：送货上门的枚举值是 DELIVERY（与后端 PickupDict.PickupType 一致），
+ * 早期版本误写为 DOOR，会导致按字典渲染时匹配不到后端返回值，已修正。
  * ---------------------------------------------------------------- */
 export const PICKUP_TYPE = [
   { value: 'SELF', label: '本人自取', type: 'primary' },
   { value: 'AGENT', label: '他人代取', type: 'warning' },
-  { value: 'DOOR', label: '送货上门', type: 'success' }
+  { value: 'DELIVERY', label: '送货上门', type: 'success' }
 ]
-export const PICKUP_TYPE_NAME = { SELF: '本人自取', AGENT: '他人代取', DOOR: '送货上门' }
+export const PICKUP_TYPE_NAME = { SELF: '本人自取', AGENT: '他人代取', DELIVERY: '送货上门' }
 
 export const VERIFY_TYPE = [
   { value: 'CODE', label: '取件码核验', type: 'primary' },
@@ -158,6 +160,51 @@ export const ROLE_CODE_NAME = {
   STAFF: '驿站员工',
   USER: '普通用户'
 }
+
+/* ------------------------------------------------------------------
+ * v1.1 新增字典
+ * ---------------------------------------------------------------- */
+
+/** 通知类型（后端 NotifyDict.NotifyType） */
+export const NOTIFY_TYPE = [
+  { value: 'IN_STORE', label: '到件通知', type: 'primary' },
+  { value: 'OVERDUE', label: '逾期催取', type: 'warning' },
+  { value: 'PICKUP_DONE', label: '取件确认', type: 'success' },
+  { value: 'EXCEPTION', label: '异常通知', type: 'danger' }
+]
+export const NOTIFY_TYPE_NAME = {
+  IN_STORE: '到件通知',
+  OVERDUE: '逾期催取',
+  PICKUP_DONE: '取件确认',
+  EXCEPTION: '异常通知'
+}
+
+/** 通知渠道（后端 NotifyDict.Channel） */
+export const NOTIFY_CHANNEL = [
+  { value: 'SMS', label: '短信', type: 'primary' },
+  { value: 'APP', label: '站内通知', type: 'success' },
+  { value: 'PHONE', label: '电话', type: 'warning' }
+]
+export const NOTIFY_CHANNEL_NAME = { SMS: '短信', APP: '站内通知', PHONE: '电话' }
+
+/** 通知发送结果（后端 NotifyDict.SendStatus） */
+export const SEND_STATUS = [
+  { value: 'SUCCESS', label: '发送成功', type: 'success' },
+  { value: 'FAILED', label: '发送失败', type: 'danger' }
+]
+export const SEND_STATUS_NAME = { SUCCESS: '发送成功', FAILED: '发送失败' }
+
+/**
+ * 货位占用程度（后端 ShelfMapVO.level）
+ * 用于货位地图格子上色与图例说明
+ */
+export const SHELF_LEVEL = [
+  { value: 'EMPTY', label: '空闲', type: 'info', color: '#0fb98f' },
+  { value: 'NORMAL', label: '正常', type: 'primary', color: '#1a6dff' },
+  { value: 'BUSY', label: '较满', type: 'warning', color: '#f59f00' },
+  { value: 'FULL', label: '已满', type: 'danger', color: '#f04438' }
+]
+export const SHELF_LEVEL_NAME = { EMPTY: '空闲', NORMAL: '正常', BUSY: '较满', FULL: '已满' }
 
 /* ------------------------------------------------------------------
  * 通用工具函数

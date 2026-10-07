@@ -142,6 +142,94 @@
         LIMIT #{limit}
     </select>
 
+    <!-- ==================== 逾期未取快件（分页） ==================== -->
+    <select id="selectOverduePage" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.status = 'IN_STORE'
+          AND DATEDIFF(NOW(), p.in_time) - p.overdue_days &gt;= #{minDays}
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        <if test="limitPhone != null and limitPhone != ''">
+            AND p.receiver_phone = #{limitPhone}
+        </if>
+        ORDER BY (DATEDIFF(NOW(), p.in_time) - p.overdue_days) DESC, p.in_time ASC
+    </select>
+
+    <!-- ==================== 逾期未取快件（列表，批量催取用） ==================== -->
+    <select id="selectOverdueList" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.status = 'IN_STORE'
+          AND DATEDIFF(NOW(), p.in_time) - p.overdue_days &gt;= #{minDays}
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        ORDER BY (DATEDIFF(NOW(), p.in_time) - p.overdue_days) DESC, p.in_time ASC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- ==================== 公开取件码查询（免登录） ==================== -->
+    <select id="selectPublicByPhone" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.receiver_phone = #{phone}
+          AND p.status IN ('IN_STORE', 'DELIVERING')
+        ORDER BY p.in_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- ==================== 仍占用货位的快件（货位地图用） ==================== -->
+    <select id="selectOnShelfParcels" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.shelf_id IS NOT NULL
+          AND p.status IN ('IN_STORE', 'DELIVERING', 'EXCEPTION')
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        ORDER BY p.shelf_id, p.in_time ASC
+    </select>
+
+    <!-- ==================== 最近入库（数据大屏） ==================== -->
+    <select id="selectRecentInStore" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        ORDER BY p.in_time DESC, p.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- ==================== 最近取件（数据大屏） ==================== -->
+    <select id="selectRecentPickup" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.status = 'PICKED_UP'
+          AND p.pickup_time IS NOT NULL
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        ORDER BY p.pickup_time DESC, p.id DESC
+        LIMIT #{limit}
+    </select>
+
     <!-- ==================== 逾期未取数量 ==================== -->
     <select id="countOverdue" resultType="int">
         SELECT COUNT(*)
@@ -151,6 +239,9 @@
           AND p.in_time &lt; DATE_SUB(NOW(), INTERVAL p.overdue_days DAY)
         <if test="stationId != null">
             AND p.station_id = #{stationId}
+        </if>
+        <if test="limitPhone != null and limitPhone != ''">
+            AND p.receiver_phone = #{limitPhone}
         </if>
     </select>
 
