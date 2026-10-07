@@ -398,10 +398,29 @@ v1.1 起全站统一为「深蓝渐变 + 青绿点缀」主题，**改配色只�
 | [docs/api-contract.md](docs/api-contract.md) | 前后端接口契约（统一约定、全部接口、枚举与错误码） |
 | [docs/test-cases.md](docs/test-cases.md) | 测试用例说明书（功能用例、接口用例、覆盖矩阵） |
 | [docs/thesis-outline.md](docs/thesis-outline.md) | 毕业论文大纲、写作素材、参考文献与答辩准备 |
+| [docs/screenshots/](docs/screenshots/) | **系统运行截图 13 张**（可直接用于论文第 5 章与答辩 PPT） |
 
 ---
 
-## 十一、作者
+## 十一、系统运行截图
+
+以下截图取自真实运行中的系统（完整说明与采集环境见 [docs/screenshots/README.md](docs/screenshots/README.md)）。
+
+| 登录 | 首页概览 | 收件登记 |
+| ---- | -------- | -------- |
+| ![登录](docs/screenshots/01-登录页.jpg) | ![首页概览](docs/screenshots/02-首页概览.jpg) | ![收件登记](docs/screenshots/03-收件登记.jpg) |
+
+| 取件核销 | 货位地图与库位详情 | 数据大屏 |
+| -------- | ------------------ | -------- |
+| ![取件核销](docs/screenshots/04-取件核销.jpg) | ![货位地图](docs/screenshots/08-货位地图与库位详情.jpg) | ![数据大屏](docs/screenshots/10-数据大屏.jpg) |
+
+| 逾期催取 | 通知记录 | 取件码自助查询 |
+| -------- | -------- | -------------- |
+| ![逾期催取](docs/screenshots/06-逾期催取.jpg) | ![通知记录](docs/screenshots/07-通知记录.jpg) | ![取件码自助查询](docs/screenshots/11-取件码自助查询.jpg) |
+
+---
+
+## 十二、作者
 
 **吴宇航** · 本科毕业设计
 
