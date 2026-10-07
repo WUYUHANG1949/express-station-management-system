@@ -1,0 +1,8 @@
+{
+  "waybillNo": "__WB__",
+  "stationId": 1,
+  "expressCompany": "中通快递",
+  "parcelType": "NORMAL",
+  "receiverName": "异常件测试收件人",
+  "receiverPhone": "13800001111"
+}

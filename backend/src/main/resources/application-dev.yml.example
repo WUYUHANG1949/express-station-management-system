@@ -1,0 +1,21 @@
+# ============================================================================
+#  本地开发环境配置模板
+#
+#  使用步骤：
+#     1. 把本文件复制为同目录下的 application-dev.yml（去掉 .example 后缀）
+#     2. 把 password 改成你自己 MySQL 的 root 密码
+#     3. 如果还没有数据库，先执行 sql/01_schema.sql 与 sql/02_data.sql
+#
+#  说明：application-dev.yml 已被 .gitignore 忽略，不会提交到代码仓库，
+#        因此你的数据库密码不会被公开。
+# ============================================================================
+
+spring:
+  datasource:
+    username: root
+    # TODO 改成你自己 MySQL 的密码
+    password: 你的数据库密码
+
+logging:
+  level:
+    com.wuyuhang.delivery: debug

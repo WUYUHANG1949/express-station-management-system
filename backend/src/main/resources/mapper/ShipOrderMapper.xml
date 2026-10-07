@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuyuhang.delivery.mapper.ShipOrderMapper">
+
+    <resultMap id="ShipOrderResultMap" type="com.wuyuhang.delivery.entity.ShipOrder">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="station_id" property="stationId"/>
+        <result column="express_company" property="expressCompany"/>
+        <result column="sender_name" property="senderName"/>
+        <result column="sender_phone" property="senderPhone"/>
+        <result column="sender_address" property="senderAddress"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+        <result column="receiver_address" property="receiverAddress"/>
+        <result column="parcel_type" property="parcelType"/>
+        <result column="weight" property="weight"/>
+        <result column="freight" property="freight"/>
+        <result column="insured_value" property="insuredValue"/>
+        <result column="status" property="status"/>
+        <result column="waybill_no" property="waybillNo"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <result column="station_name" property="stationName"/>
+        <result column="operator_name" property="operatorName"/>
+    </resultMap>
+
+    <sql id="shipOrderColumns">
+        s.id, s.order_no, s.station_id, s.express_company, s.sender_name, s.sender_phone, s.sender_address,
+        s.receiver_name, s.receiver_phone, s.receiver_address, s.parcel_type, s.weight, s.freight,
+        s.insured_value, s.status, s.waybill_no, s.operator_id, s.create_time, s.update_time,
+        st.station_name AS station_name,
+        u.real_name     AS operator_name
+    </sql>
+
+    <sql id="shipOrderJoins">
+        FROM ship_order s
+        LEFT JOIN station st ON st.id = s.station_id
+        LEFT JOIN sys_user u ON u.id = s.operator_id
+    </sql>
+
+    <sql id="shipOrderConditions">
+        <if test="q.orderNo != null and q.orderNo != ''">
+            AND s.order_no LIKE CONCAT('%', #{q.orderNo}, '%')
+        </if>
+        <if test="q.waybillNo != null and q.waybillNo != ''">
+            AND s.waybill_no LIKE CONCAT('%', #{q.waybillNo}, '%')
+        </if>
+        <if test="q.senderName != null and q.senderName != ''">
+            AND s.sender_name LIKE CONCAT('%', #{q.senderName}, '%')
+        </if>
+        <if test="q.senderPhone != null and q.senderPhone != ''">
+            AND s.sender_phone LIKE CONCAT('%', #{q.senderPhone}, '%')
+        </if>
+        <if test="q.receiverName != null and q.receiverName != ''">
+            AND s.receiver_name LIKE CONCAT('%', #{q.receiverName}, '%')
+        </if>
+        <if test="q.receiverPhone != null and q.receiverPhone != ''">
+            AND s.receiver_phone LIKE CONCAT('%', #{q.receiverPhone}, '%')
+        </if>
+        <if test="q.status != null and q.status != ''">
+            AND s.status = #{q.status}
+        </if>
+        <if test="q.stationId != null">
+            AND s.station_id = #{q.stationId}
+        </if>
+        <if test="q.startTime != null">
+            AND s.create_time &gt;= #{q.startTime}
+        </if>
+        <if test="q.endTime != null">
+            AND s.create_time &lt; DATE_ADD(#{q.endTime}, INTERVAL 1 DAY)
+        </if>
+    </sql>
+
+    <select id="selectShipOrderPage" resultMap="ShipOrderResultMap">
+        SELECT
+        <include refid="shipOrderColumns"/>
+        <include refid="shipOrderJoins"/>
+        WHERE s.deleted = 0
+        <include refid="shipOrderConditions"/>
+        ORDER BY s.create_time DESC, s.id DESC
+    </select>
+
+    <select id="selectShipOrderDetail" resultMap="ShipOrderResultMap">
+        SELECT
+        <include refid="shipOrderColumns"/>
+        <include refid="shipOrderJoins"/>
+        WHERE s.deleted = 0 AND s.id = #{id}
+    </select>
+
+</mapper>

@@ -1,0 +1,91 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: express-station-backend
+
+  # ==================== 运行环境 ====================
+  # 默认激活 dev 环境：数据库账号密码等本地敏感配置放在 application-dev.yml 中，
+  # 该文件已加入 .gitignore，不会提交到代码仓库。
+  # 新克隆项目后，请复制 application-dev.yml.example 为 application-dev.yml 并填写自己的密码。
+  profiles:
+    active: dev
+
+  # ==================== 数据源配置 ====================
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/express_station?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    # 账号密码优先读取环境变量 MYSQL_USERNAME / MYSQL_PASSWORD；
+    # 若未设置环境变量，则由 application-dev.yml 覆盖（推荐做法）。
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: ExpressStationHikariPool
+
+  # ==================== JSON 序列化 ====================
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: always
+    serialization:
+      write-dates-as-timestamps: false
+
+  mvc:
+    throw-exception-if-no-handler-found: true
+
+# ==================== MyBatis-Plus 配置 ====================
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.wuyuhang.delivery.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+    # 开发阶段打印 SQL，便于调试；上线可改为 org.apache.ibatis.logging.nologging.NoLoggingImpl
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      # 全局逻辑删除配置，与表结构中的 deleted 字段对应
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ==================== JWT 配置 ====================
+jwt:
+  # HS256 要求密钥长度不少于 256 bit，这里使用足够长的自定义字符串
+  secret: express-station-management-system-jwt-secret-key-2026-wuyuhang-graduation-design
+  # 令牌有效期（秒）：24 小时
+  expiration: 86400
+  header: Authorization
+  prefix: "Bearer "
+
+# ==================== 接口文档 ====================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+    display-request-duration: true
+
+# ==================== 日志 ====================
+logging:
+  level:
+    root: info
+    com.wuyuhang.delivery: debug
+    org.springframework.web: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

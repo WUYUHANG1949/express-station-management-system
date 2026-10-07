@@ -1,0 +1,14 @@
+{
+  "stationId": 1,
+  "expressCompany": "顺丰速运",
+  "senderName": "冒烟测试寄件人",
+  "senderPhone": "13800005678",
+  "senderAddress": "江苏省南京市江宁区幸福路 128 号",
+  "receiverName": "冒烟测试收件人",
+  "receiverPhone": "13800008765",
+  "receiverAddress": "北京市海淀区中关村大街 1 号",
+  "parcelType": "NORMAL",
+  "weight": 1.5,
+  "freight": 18,
+  "insuredValue": 0
+}

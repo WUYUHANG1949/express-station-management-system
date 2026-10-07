@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuyuhang.delivery.mapper.ParcelMapper">
+
+    <!-- ==================== 结果映射 ==================== -->
+    <resultMap id="ParcelResultMap" type="com.wuyuhang.delivery.entity.Parcel">
+        <id column="id" property="id"/>
+        <result column="waybill_no" property="waybillNo"/>
+        <result column="station_id" property="stationId"/>
+        <result column="shelf_id" property="shelfId"/>
+        <result column="express_company" property="expressCompany"/>
+        <result column="parcel_type" property="parcelType"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+        <result column="pickup_code" property="pickupCode"/>
+        <result column="weight" property="weight"/>
+        <result column="freight" property="freight"/>
+        <result column="status" property="status"/>
+        <result column="in_time" property="inTime"/>
+        <result column="pickup_time" property="pickupTime"/>
+        <result column="overdue_days" property="overdueDays"/>
+        <result column="storage_fee" property="storageFee"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="remark" property="remark"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <!-- 以下三个字段来自关联表，并非 parcel 表字段 -->
+        <result column="station_name" property="stationName"/>
+        <result column="shelf_code" property="shelfCode"/>
+        <result column="operator_name" property="operatorName"/>
+    </resultMap>
+
+    <!-- ==================== 可复用 SQL 片段 ==================== -->
+    <sql id="parcelColumns">
+        p.id, p.waybill_no, p.station_id, p.shelf_id, p.express_company, p.parcel_type,
+        p.receiver_name, p.receiver_phone, p.pickup_code, p.weight, p.freight, p.status,
+        p.in_time, p.pickup_time, p.overdue_days, p.storage_fee, p.operator_id, p.remark,
+        p.create_time, p.update_time,
+        st.station_name AS station_name,
+        sh.shelf_code   AS shelf_code,
+        u.real_name     AS operator_name
+    </sql>
+
+    <sql id="parcelJoins">
+        FROM parcel p
+        LEFT JOIN station st ON st.id = p.station_id
+        LEFT JOIN shelf sh ON sh.id = p.shelf_id
+        LEFT JOIN sys_user u ON u.id = p.operator_id
+    </sql>
+
+    <!-- 条件组合查询：每个条件都用 if 判断，为空时不参与拼接 -->
+    <sql id="parcelConditions">
+        <if test="q.waybillNo != null and q.waybillNo != ''">
+            AND p.waybill_no LIKE CONCAT('%', #{q.waybillNo}, '%')
+        </if>
+        <if test="q.pickupCode != null and q.pickupCode != ''">
+            AND p.pickup_code = #{q.pickupCode}
+        </if>
+        <if test="q.receiverName != null and q.receiverName != ''">
+            AND p.receiver_name LIKE CONCAT('%', #{q.receiverName}, '%')
+        </if>
+        <if test="q.receiverPhone != null and q.receiverPhone != ''">
+            AND p.receiver_phone LIKE CONCAT('%', #{q.receiverPhone}, '%')
+        </if>
+        <if test="q.expressCompany != null and q.expressCompany != ''">
+            AND p.express_company = #{q.expressCompany}
+        </if>
+        <if test="q.status != null and q.status != ''">
+            AND p.status = #{q.status}
+        </if>
+        <if test="q.parcelType != null and q.parcelType != ''">
+            AND p.parcel_type = #{q.parcelType}
+        </if>
+        <if test="q.stationId != null">
+            AND p.station_id = #{q.stationId}
+        </if>
+        <if test="q.startTime != null">
+            AND p.in_time &gt;= #{q.startTime}
+        </if>
+        <if test="q.endTime != null">
+            AND p.in_time &lt; DATE_ADD(#{q.endTime}, INTERVAL 1 DAY)
+        </if>
+        <if test="q.keyword != null and q.keyword != ''">
+            AND (p.pickup_code = #{q.keyword}
+                OR p.waybill_no LIKE CONCAT('%', #{q.keyword}, '%')
+                OR p.receiver_phone LIKE CONCAT('%', #{q.keyword}, '%')
+                OR p.receiver_name LIKE CONCAT('%', #{q.keyword}, '%'))
+        </if>
+        <!-- 数据权限：普通用户只能看到本人手机号名下的快件，由 Service 层强制写入 -->
+        <if test="q.limitPhone != null and q.limitPhone != ''">
+            AND p.receiver_phone = #{q.limitPhone}
+        </if>
+    </sql>
+
+    <!-- ==================== 分页条件查询 ==================== -->
+    <select id="selectParcelPage" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+        <include refid="parcelConditions"/>
+        ORDER BY p.in_time DESC, p.id DESC
+    </select>
+
+    <!-- ==================== 不分页查询（导出 Excel 用） ==================== -->
+    <select id="selectParcelList" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+        <include refid="parcelConditions"/>
+        ORDER BY p.in_time DESC, p.id DESC
+    </select>
+
+    <!-- ==================== 详情 ==================== -->
+    <select id="selectParcelDetail" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0 AND p.id = #{id}
+    </select>
+
+    <!-- ==================== 取件核销页的模糊查询 ==================== -->
+    <select id="selectByKeyword" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+        <if test="onlyPhone != null and onlyPhone != ''">
+            AND p.receiver_phone = #{onlyPhone}
+        </if>
+        AND (p.pickup_code = #{keyword}
+            OR p.waybill_no LIKE CONCAT('%', #{keyword}, '%')
+            OR p.receiver_phone LIKE CONCAT('%', #{keyword}, '%')
+            OR p.receiver_name LIKE CONCAT('%', #{keyword}, '%'))
+        <!-- 可操作的快件排在前面，便于员工直接选中核销 -->
+        ORDER BY CASE WHEN p.status IN ('IN_STORE', 'DELIVERING') THEN 0 ELSE 1 END,
+                 p.in_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- ==================== 逾期未取数量 ==================== -->
+    <select id="countOverdue" resultType="int">
+        SELECT COUNT(*)
+        FROM parcel p
+        WHERE p.deleted = 0
+          AND p.status = 'IN_STORE'
+          AND p.in_time &lt; DATE_SUB(NOW(), INTERVAL p.overdue_days DAY)
+        <if test="stationId != null">
+            AND p.station_id = #{stationId}
+        </if>
+    </select>
+
+    <!-- ==================== 清空某货位下的快件归属（删除货位前调用） ==================== -->
+    <update id="clearShelf">
+        UPDATE parcel
+        SET shelf_id = NULL
+        WHERE shelf_id = #{shelfId} AND deleted = 0
+    </update>
+
+</mapper>

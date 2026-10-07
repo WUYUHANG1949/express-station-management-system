@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuyuhang.delivery.mapper.StatMapper">
+
+    <!--
+      首页概览：用一条 SQL 通过多个标量子查询一次性取回全部指标。
+      比多次往返数据库要快，也便于在论文中说明"统计接口的性能优化"。
+    -->
+    <select id="selectOverview" resultType="com.wuyuhang.delivery.vo.StatOverviewVO">
+        SELECT
+        (SELECT COUNT(*) FROM parcel p
+        WHERE p.deleted = 0 AND DATE(p.in_time) = CURDATE()
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS todayInCount,
+
+        (SELECT COUNT(*) FROM pickup_record r
+        WHERE DATE(r.pickup_time) = CURDATE()
+        <if test="stationId != null">AND r.station_id = #{stationId}</if>) AS todayPickupCount,
+
+        (SELECT COUNT(*) FROM ship_order s
+        WHERE s.deleted = 0 AND DATE(s.create_time) = CURDATE()
+        <if test="stationId != null">AND s.station_id = #{stationId}</if>) AS todayShipCount,
+
+        (SELECT COUNT(*) FROM parcel p
+        WHERE p.deleted = 0 AND p.status = 'IN_STORE'
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS inStoreCount,
+
+        (SELECT COUNT(*) FROM parcel p
+        WHERE p.deleted = 0 AND p.status = 'IN_STORE'
+        AND p.in_time &lt; DATE_SUB(NOW(), INTERVAL p.overdue_days DAY)
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS overdueCount,
+
+        (SELECT COUNT(*) FROM exception_record e
+        WHERE e.handle_status IN ('PENDING', 'HANDLING')
+        <if test="stationId != null">AND e.station_id = #{stationId}</if>) AS exceptionCount,
+
+        (SELECT COUNT(*) FROM parcel p
+        WHERE p.deleted = 0 AND p.status = 'DELIVERING'
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS deliveringCount,
+
+        (SELECT COUNT(*) FROM parcel p
+        WHERE p.deleted = 0
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS totalParcelCount,
+
+        (SELECT IFNULL(SUM(sh.capacity), 0) FROM shelf sh
+        WHERE sh.status = 1
+        <if test="stationId != null">AND sh.station_id = #{stationId}</if>) AS shelfTotal,
+
+        (SELECT IFNULL(SUM(sh.used_count), 0) FROM shelf sh
+        WHERE sh.status = 1
+        <if test="stationId != null">AND sh.station_id = #{stationId}</if>) AS shelfUsed
+    </select>
+
+    <!-- 按天统计入库量。列别名用单字母，避免 Map 结果集的大小写映射歧义 -->
+    <select id="selectInTrend" resultType="java.util.HashMap">
+        SELECT DATE_FORMAT(p.in_time, '%Y-%m-%d') AS d, COUNT(*) AS c
+        FROM parcel p
+        WHERE p.deleted = 0
+          AND p.in_time &gt;= #{startDate}
+          AND p.in_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>
+        GROUP BY d
+        ORDER BY d
+    </select>
+
+    <!-- 按天统计取件量 -->
+    <select id="selectPickupTrend" resultType="java.util.HashMap">
+        SELECT DATE_FORMAT(r.pickup_time, '%Y-%m-%d') AS d, COUNT(*) AS c
+        FROM pickup_record r
+        WHERE r.pickup_time &gt;= #{startDate}
+          AND r.pickup_time &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+        <if test="stationId != null">AND r.station_id = #{stationId}</if>
+        GROUP BY d
+        ORDER BY d
+    </select>
+
+    <!-- 按快递公司统计 -->
+    <select id="selectCompanyStat" resultType="com.wuyuhang.delivery.vo.NameValueVO">
+        SELECT p.express_company AS `name`, COUNT(*) AS `value`
+        FROM parcel p
+        WHERE p.deleted = 0
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>
+        GROUP BY p.express_company
+        ORDER BY `value` DESC
+    </select>
+
+    <!-- 按快件类型统计（返回编码，中文名称由 Service 层转换） -->
+    <select id="selectParcelTypeStat" resultType="com.wuyuhang.delivery.vo.NameValueVO">
+        SELECT p.parcel_type AS `name`, COUNT(*) AS `value`
+        FROM parcel p
+        WHERE p.deleted = 0
+        <if test="stationId != null">AND p.station_id = #{stationId}</if>
+        GROUP BY p.parcel_type
+        ORDER BY `value` DESC
+    </select>
+
+    <!-- 驿站业务量排行 -->
+    <select id="selectStationRank" resultType="com.wuyuhang.delivery.vo.StationRankVO">
+        SELECT s.station_name AS stationName,
+               (SELECT COUNT(*) FROM parcel p WHERE p.station_id = s.id AND p.deleted = 0)  AS parcelCount,
+               (SELECT COUNT(*) FROM pickup_record r WHERE r.station_id = s.id)             AS pickupCount
+        FROM station s
+        WHERE s.status = 1
+        ORDER BY parcelCount DESC
+    </select>
+
+</mapper>

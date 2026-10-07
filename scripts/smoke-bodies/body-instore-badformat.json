@@ -1,0 +1,8 @@
+{
+  "waybillNo": "ABC123",
+  "stationId": 1,
+  "expressCompany": "顺丰速运",
+  "parcelType": "NORMAL",
+  "receiverName": "格式错误测试",
+  "receiverPhone": "13800001234"
+}

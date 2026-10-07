@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wuyuhang.delivery.mapper.ExceptionRecordMapper">
+
+    <resultMap id="ExceptionResultMap" type="com.wuyuhang.delivery.entity.ExceptionRecord">
+        <id column="id" property="id"/>
+        <result column="parcel_id" property="parcelId"/>
+        <result column="waybill_no" property="waybillNo"/>
+        <result column="exception_type" property="exceptionType"/>
+        <result column="description" property="description"/>
+        <result column="handle_status" property="handleStatus"/>
+        <result column="handler_id" property="handlerId"/>
+        <result column="handler_name" property="handlerName"/>
+        <result column="handle_result" property="handleResult"/>
+        <result column="station_id" property="stationId"/>
+        <result column="create_time" property="createTime"/>
+        <result column="handle_time" property="handleTime"/>
+        <result column="station_name" property="stationName"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+    </resultMap>
+
+    <sql id="exceptionColumns">
+        e.id, e.parcel_id, e.waybill_no, e.exception_type, e.description, e.handle_status,
+        e.handler_id, e.handler_name, e.handle_result, e.station_id, e.create_time, e.handle_time,
+        st.station_name AS station_name,
+        p.receiver_name  AS receiver_name,
+        p.receiver_phone AS receiver_phone
+    </sql>
+
+    <sql id="exceptionJoins">
+        FROM exception_record e
+        LEFT JOIN station st ON st.id = e.station_id
+        LEFT JOIN parcel p ON p.id = e.parcel_id
+    </sql>
+
+    <sql id="exceptionConditions">
+        <if test="q.waybillNo != null and q.waybillNo != ''">
+            AND e.waybill_no LIKE CONCAT('%', #{q.waybillNo}, '%')
+        </if>
+        <if test="q.exceptionType != null and q.exceptionType != ''">
+            AND e.exception_type = #{q.exceptionType}
+        </if>
+        <if test="q.handleStatus != null and q.handleStatus != ''">
+            AND e.handle_status = #{q.handleStatus}
+        </if>
+        <if test="q.stationId != null">
+            AND e.station_id = #{q.stationId}
+        </if>
+    </sql>
+
+    <select id="selectExceptionPage" resultMap="ExceptionResultMap">
+        SELECT
+        <include refid="exceptionColumns"/>
+        <include refid="exceptionJoins"/>
+        WHERE 1 = 1
+        <include refid="exceptionConditions"/>
+        ORDER BY CASE WHEN e.handle_status = 'PENDING' THEN 0 WHEN e.handle_status = 'HANDLING' THEN 1 ELSE 2 END,
+                 e.create_time DESC
+    </select>
+
+    <select id="countUnhandledByParcelId" resultType="int">
+        SELECT COUNT(*)
+        FROM exception_record
+        WHERE parcel_id = #{parcelId}
+          AND handle_status IN ('PENDING', 'HANDLING')
+    </select>
+
+</mapper>
