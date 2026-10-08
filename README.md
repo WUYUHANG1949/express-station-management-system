@@ -398,6 +398,7 @@ v1.1 起全站统一为「深蓝渐变 + 青绿点缀」主题，**改配色只�
 | [docs/api-contract.md](docs/api-contract.md) | 前后端接口契约（统一约定、全部接口、枚举与错误码） |
 | [docs/test-cases.md](docs/test-cases.md) | 测试用例说明书（功能用例、接口用例、覆盖矩阵） |
 | [docs/thesis-outline.md](docs/thesis-outline.md) | 毕业论文大纲、写作素材、参考文献与答辩准备 |
+| [docs/code-guide.md](docs/code-guide.md) | **源码导读**：先读哪个文件、核心逻辑在第几行、三条主链路、改需求动哪个文件 |
 | [docs/screenshots/](docs/screenshots/) | **系统运行截图 13 张**（可直接用于论文第 5 章与答辩 PPT） |
 
 ---
