@@ -24,9 +24,13 @@
         WHERE p.deleted = 0 AND p.status = 'IN_STORE'
         <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS inStoreCount,
 
+        <!-- 逾期判定与 ParcelMapper.countOverdue、逾期件分页保持同一口径：
+             已保管天数(DATEDIFF) - 免费保管天数 >= 1，按自然日计算。
+             早期写成 in_time < DATE_SUB(NOW(), INTERVAL overdue_days DAY)（时间戳精确比较），
+             会把"恰好到期"的快件算成逾期，导致概览数字比逾期列表条数多。 -->
         (SELECT COUNT(*) FROM parcel p
         WHERE p.deleted = 0 AND p.status = 'IN_STORE'
-        AND p.in_time &lt; DATE_SUB(NOW(), INTERVAL p.overdue_days DAY)
+        AND DATEDIFF(NOW(), p.in_time) - p.overdue_days &gt;= 1
         <if test="stationId != null">AND p.station_id = #{stationId}</if>) AS overdueCount,
 
         (SELECT COUNT(*) FROM exception_record e

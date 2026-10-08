@@ -6,7 +6,7 @@
 1.5 no-token access => [OK] code=401 expect=401 message=请先登录后再操作
 
 ==================== 2. PARCEL IN-STORE ====================
-2.1 in-store (SF671133188204) => {"message":"入库成功，取件码：74692404","id":26,"pickupCode":"74692404","operatorName":"吴宇航","statusName":"在库待取","status":"IN_STORE","code":200,"shelfCode":"B-01-02","stationName":"幸福小区快递驿站","parcelTypeName":"普通件"}
+2.1 in-store (SF969123583366) => {"message":"入库成功，取件码：94288276","id":26,"pickupCode":"94288276","operatorName":"吴宇航","statusName":"在库待取","status":"IN_STORE","code":200,"shelfCode":"B-01-02","stationName":"幸福小区快递驿站","parcelTypeName":"普通件"}
 2.2 duplicate waybill => {"code":1001,"message":"该运单号已登记，请勿重复入库"}
 2.3 invalid waybill format => {"code":1001,"message":"顺丰速运运单号以 SF 开头，后接 12~15 位数字，例如 SF1234567890123"}
 2.4 invalid phone => {"code":400,"message":"收件人手机号格式不正确"}
@@ -15,13 +15,13 @@
 3.1 shelf after in-store => {"capacity":60,"usedCount":1,"freeCount":59,"shelfCode":"B-01-02"}
 
 ==================== 4. PICKUP ====================
-4.1 query by pickup code => {"waybillNo":"SF671133188204","code":200,"count":1,"statusName":"在库待取"}
+4.1 query by pickup code => {"waybillNo":"SF969123583366","code":200,"count":1,"statusName":"在库待取"}
 4.2 overdue fee => {"overdueDays":0,"overdueFee":0.00,"storageDays":0,"freeDays":3}
 4.3 wrong pickup code => {"code":1001,"message":"取件码不正确，请核对"}
-4.4 pickup success => {"message":"核销成功，快件已交付","code":200,"pickupType":"SELF","verifyType":"CODE","recordId":6,"operatorName":"吴宇航"}
+4.4 pickup success => {"message":"核销成功，快件已交付","code":200,"pickupType":"SELF","verifyType":"CODE","recordId":11,"operatorName":"吴宇航"}
 4.5 duplicate pickup => {"code":1001,"message":"该快件当前状态为「已取件」，不可取件"}
 4.6 shelf after pickup (must equal 3.1) => {"usedCount":0,"freeCount":60,"shelfCode":"B-01-02"}
-4.7 traces => {"descs":"快件入库登记成功，取件码 74692404，存放库位 B-01-02 // 取件核销完成，无需缴纳保管费","types":"IN_STORE -\u003e PICKUP","count":2}
+4.7 traces => {"descs":"快件入库登记成功，取件码 94288276，存放库位 B-01-02 // 取件核销完成，无需缴纳保管费","types":"IN_STORE -\u003e PICKUP","count":2}
 
 ==================== 5. RBAC ====================
 5.1 staff01 login => {"stationId":1,"code":200,"stationName":"幸福小区快递驿站","roles":["STAFF"],"permCount":29}
@@ -33,25 +33,25 @@
 5.7 user01 menus => {"rootCount":3,"roots":"首页概览 | 个人中心 | 快件查询"}
 
 ==================== 6. STATS ====================
-6.1 overview => {"todayInCount":10,"todayPickupCount":1,"todayShipCount":2,"inStoreCount":16,"overdueCount":4,"exceptionCount":2,"deliveringCount":1,"totalParcelCount":26,"shelfUsage":{"total":680,"used":19,"rate":2.8}}
-6.2 trend => {"dates":"10-01,10-02,10-03,10-04,10-05,10-06,10-07","inCounts":"2,1,2,2,2,3,10","pickupCounts":"0,1,0,1,1,2,1"}
+6.1 overview => {"todayInCount":9,"todayPickupCount":3,"todayShipCount":2,"inStoreCount":16,"overdueCount":3,"exceptionCount":2,"deliveringCount":1,"totalParcelCount":26,"shelfUsage":{"total":680,"used":19,"rate":2.8}}
+6.2 trend => {"dates":"10-02,10-03,10-04,10-05,10-06,10-07,10-08","inCounts":"2,1,2,2,2,4,9","pickupCounts":"0,1,0,1,1,0,3"}
 6.3 company => {"count":7,"top":"顺丰速运=6"}
 6.4 parcel type => {"items":"普通件=16,文件=2,大件=2,易碎品=2,小件=2,生鲜=2"}
 6.5 station rank => {"items":"幸福小区快递驿站(16/4),大学城菜鸟驿站(10/2)"}
 
 ==================== 7. SHIP & EXCEPTION ====================
-7.1 ship create => {"code":200,"id":9}
+7.1 ship create => {"code":200,"id":17}
 7.2 ship page => {"operatorName":"吴宇航","parcelTypeName":"普通件","stationName":"幸福小区快递驿站","total":9,"statusName":"待揽收"}
 7.3 ship status update => {"code":200,"message":"状态已更新"}
-7.4 in-store for exception (ZT874790773580) => {"code":200,"id":27}
-7.5 exception create => {"message":"异常件登记成功","code":200,"id":4}
+7.4 in-store for exception (ZT497486228282) => {"code":200,"id":27}
+7.5 exception create => {"message":"异常件登记成功","code":200,"id":7}
 7.6 parcel status after exception => {"statusName":"异常件","status":"EXCEPTION"}
 7.7 exception handle => {"code":200,"message":"处理完成"}
 7.8 parcel status after handle => {"statusName":"已退回","status":"RETURNED"}
 7.9 exception page => {"stationName":"大学城菜鸟驿站","typeName":"地址错误","total":4,"statusName":"待处理"}
 
 ==================== 8. EXPORT ====================
-8.1 export => {"statusCode":200,"bytes":6354}
+8.1 export => {"statusCode":200,"bytes":6367}
 
 ==================== 9. SYSTEM MGMT ====================
 9.1 users page => {"total":5,"first":"admin/系统管理员/station="}
@@ -64,7 +64,7 @@
 9.8 recalculate shelf usage => {"code":200,"message":"重算完成，共更新 7 个货位"}
 
 ==================== 10. REGISTER ====================
-10.1 register (testuser6996) => {"message":"注册成功，请登录","code":200,"roles":"USER"}
+10.1 register (testuser2757) => {"message":"注册成功，请登录","code":200,"roles":"USER"}
 10.2 duplicate register => {"code":1001,"message":"该用户名已被注册"}
 10.3 password mismatch => {"code":1001,"message":"两次输入的密码不一致"}
 10.4 invalid username => {"code":400,"message":"用户名需以字母开头，只能包含字母、数字和下划线；用户名长度需为 3-20 位"}
@@ -93,14 +93,14 @@
 ==================== 14. V1.1 OVERDUE ====================
 14.1 overdue page => {"stationName":"幸福小区快递驿站","waybillNo":"JT5566778899001","code":200,"total":3,"storageDays":6,"fee":6.00,"overdueDayCount":3}
 14.2 overdue >= 3 days => {"total":1,"waybills":"JT5566778899001"}
-14.3 overdue count => {"code":200,"count":4}
+14.3 overdue count => {"code":200,"count":3}
 
 ==================== 15. V1.1 SHELF MAP ====================
 15.1 shelf map => {"levels":"NORMAL=6,EMPTY=1","code":200,"sample":"A-01-01 used=2 parcels=2 rate=5.0","shelfCount":7}
 15.2 recalculate shelves => {"code":200,"message":"重算完成，共更新 7 个货位"}
 
 ==================== 16. V1.1 DATA SCREEN ====================
-16.1 screen (admin) => {"notifyToday":15,"topOverdue":3,"recentIn":8,"inStore":16,"recentPickup":6,"trendDays":14,"company":7,"stationRank":2,"code":200,"shelfRate":2.8,"todayIn":11}
+16.1 screen (admin) => {"notifyToday":16,"topOverdue":3,"recentIn":8,"inStore":16,"recentPickup":6,"trendDays":14,"company":7,"stationRank":2,"code":200,"shelfRate":2.8,"todayIn":10}
 16.2 screen (staff, stationRank must be empty) => {"code":200,"stationRank":0,"inStore":9}
 
 ==================== 17. V1.1 PUBLIC QUERY (NO AUTH) ====================
@@ -111,7 +111,7 @@
 17.5 protected endpoint still requires auth => [OK] code=401 expect=401 message=请先登录后再操作
 
 ==================== 18. V1.1 VALIDATION ====================
-18.1 in-store for validation test => {"pickupCode":"56978343","code":200,"id":28}
+18.1 in-store for validation test => {"pickupCode":"34934320","code":200,"id":28}
 18.2 invalid pickupType DOOR must be rejected => {"code":1001,"message":"非法的取件方式：DOOR"}
 18.3 valid pickupType DELIVERY => {"code":200,"message":"核销成功，快件已交付"}
 18.4 auto notifications after in-store + pickup => {"count":2,"types":"取件确认 -\u003e 到件通知"}

@@ -231,12 +231,20 @@
     </select>
 
     <!-- ==================== 逾期未取数量 ==================== -->
+    <!--
+      逾期判定必须与「逾期件分页」以及费用试算（ParcelService.calculateFee 用
+      ChronoUnit.DAYS.between 按自然日计算）保持同一口径：
+          已保管天数(DATEDIFF) - 免费保管天数 >= 1
+      早期版本这里写成 in_time < DATE_SUB(NOW(), INTERVAL overdue_days DAY)，
+      它是时间戳精确比较：恰好"3 天前同一时刻"入库、免费 3 天的快件会被算作逾期，
+      而分页列表按自然日判定为未逾期，导致看板角标与列表条数对不上（4 件 vs 3 条）。
+    -->
     <select id="countOverdue" resultType="int">
         SELECT COUNT(*)
         FROM parcel p
         WHERE p.deleted = 0
           AND p.status = 'IN_STORE'
-          AND p.in_time &lt; DATE_SUB(NOW(), INTERVAL p.overdue_days DAY)
+          AND DATEDIFF(NOW(), p.in_time) - p.overdue_days &gt;= 1
         <if test="stationId != null">
             AND p.station_id = #{stationId}
         </if>

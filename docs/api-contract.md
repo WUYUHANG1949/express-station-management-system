@@ -348,7 +348,9 @@ v1.1 新增的 8 项权限：
 
 `GET /api/parcels/overdue/count?stationId=1` → `data` 为整数，供首页与侧边栏角标使用。
 
-权限：`parcel:list`。统计口径与 3.13 一致：`status = 'IN_STORE'` 且 `in_time < DATE_SUB(NOW(), INTERVAL overdue_days DAY)`。
+权限：`parcel:list`。统计口径与 3.13 完全一致（**必须使用同一判定式，避免角标数字与列表条数不一致**）：
+`status = 'IN_STORE'` 且 `DATEDIFF(NOW(), in_time) - overdue_days >= 1`，即按自然日计算已保管天数，
+超出免费保管天数 1 天及以上才算逾期。"恰好用满免费保管天数"的快件不计入逾期，与费用试算口径一致。
 
 数据范围（v1.1 已与 3.13 分页接口统一）：管理员按传入的 `stationId` 统计（为空表示全部驿站）；
 **驿站员工强制收敛为本驿站**；**普通用户强制收敛为本人手机号名下的快件**
