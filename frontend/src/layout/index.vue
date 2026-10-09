@@ -162,12 +162,19 @@
           </template>
         </el-result>
 
+        <!--
+          内容区渲染。
+          警告：这里**不要**用 <transition mode="out-in"> 包裹 <keep-alive>。
+          该写法会让站内跳转后 router-view 渲染不出任何内容：
+          transition 的直接子节点是抽象组件 keep-alive，而 key 写在其内部的
+          <component> 上，导致 transition 认为"子节点没有变化"，一直等待一个
+          永远不会结束的离场过渡，新组件因此永不进场 —— 表现为
+          「点菜单切换页面后内容区一片空白，只有刷新整页才恢复」。
+          页面入场动画改由各页面的 .page-container（es-page-enter）用 CSS 动画实现，
+          既有效果又不会影响渲染。
+        -->
         <router-view v-else v-slot="{ Component, route }">
-          <transition name="fade-transform" mode="out-in">
-            <keep-alive :include="keepAliveNames">
-              <component :is="Component" :key="route.path" />
-            </keep-alive>
-          </transition>
+          <component :is="Component" :key="route.path" />
         </router-view>
       </el-main>
     </el-container>
@@ -278,21 +285,19 @@ const roleTag = computed(() => {
   return role ? ROLE_CODE_NAME[role] || role : ''
 })
 
-/**
- * keep-alive 的组件名白名单：取路由 meta.keepAlive 的 name 列表，
- * 避免多个 list.vue 因组件同名而互相顶替
+/*
+ * 关于组件缓存：原先这里用 <keep-alive :include="..."> 做过页面缓存，
+ * 但 include 匹配的是**组件名**（<script setup> 下由文件名推断，如 list、user），
+ * 而这里传的是**路由名**（ParcelList、SystemUser），两者永远匹配不上，
+ * 缓存实际从未生效；同时它还是"跳转后内容区空白"bug 的组成部分。
+ * 因此直接去掉缓存：每次进入页面重新挂载并拉取数据，
+ * 对驿站场景更合理（员工必须看到最新的快照与库存）。
  */
-const keepAliveNames = computed(() =>
-  router
-    .getRoutes()
-    .filter((r) => r.meta && r.meta.keepAlive && r.name)
-    .map((r) => String(r.name))
-)
 
 /* ------------------------------------------------------------------
  * 渲染异常兜底
- * 子组件（含异步路由组件加载失败）抛错时，Vue 默认会留下空白内容区，
- * 这里捕获后展示友好提示与「重新加载」按钮，避免出现"整页空白"的无措状态。
+ * 子组件抛错时，Vue 默认会留下空白内容区，
+ * 这里捕获后展示友好提示与「强制刷新」按钮，避免出现"整页空白"的无措状态。
  * ---------------------------------------------------------------- */
 const renderError = ref(null)
 
@@ -737,7 +742,7 @@ onMounted(async () => {
   line-height: 1.7;
 }
 
-/* 过渡动画 */
+/* 过渡动画（仅用于侧边栏 logo 文字等轻量元素） */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;
@@ -748,18 +753,6 @@ onMounted(async () => {
   opacity: 0;
 }
 
-.fade-transform-enter-active,
-.fade-transform-leave-active {
-  transition: all 0.26s var(--es-ease);
-}
-
-.fade-transform-enter-from {
-  opacity: 0;
-  transform: translateY(8px);
-}
-
-.fade-transform-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-}
+/* 说明：内容区的入场动画由各页面 .page-container 的 es-page-enter 动画提供，
+   不要在此处为 router-view 添加 Vue <transition>，原因见模板中的注释。 */
 </style>
