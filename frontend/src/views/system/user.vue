@@ -1,5 +1,41 @@
 <template>
   <PageContainer title="用户管理" sub-title="维护系统账号、角色与所属驿站">
+    <!-- ==================== 账号统计卡片 ==================== -->
+    <div v-loading="statsLoading" class="user-stats">
+      <StatCard
+        label="账号总数"
+        :value="stats.total"
+        unit="个"
+        icon="User"
+        preset="blue"
+        :sub-text="`启用 ${stats.enabledCount} · 禁用 ${stats.disabledCount}`"
+      />
+      <StatCard
+        label="系统管理员"
+        :value="stats.adminCount"
+        unit="人"
+        icon="Setting"
+        preset="purple"
+        sub-text="拥有全部功能与数据权限"
+      />
+      <StatCard
+        label="驿站员工"
+        :value="stats.staffCount"
+        unit="人"
+        icon="OfficeBuilding"
+        preset="teal"
+        :sub-text="`仅限本驿站数据 · 未绑定驿站 ${stats.noStationCount} 人`"
+      />
+      <StatCard
+        label="普通用户"
+        :value="stats.userCount"
+        unit="人"
+        icon="Avatar"
+        preset="gray"
+        sub-text="仅可查询本人手机号名下快件"
+      />
+    </div>
+
     <!-- ==================== 条件查询 ==================== -->
     <el-form :model="query" :inline="true" class="search-bar">
       <el-form-item label="用户名">
@@ -175,9 +211,11 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Refresh, RefreshLeft, Search } from '@element-plus/icons-vue'
 import PageContainer from '@/components/PageContainer.vue'
+import StatCard from '@/components/StatCard.vue'
 import {
   createUser,
   deleteUser,
+  getUserStats,
   pageUsers,
   resetUserPassword,
   updateUser,
@@ -209,6 +247,36 @@ const total = ref(0)
 const loading = ref(false)
 /** 状态切换 loading 的行 id */
 const statusLoadingId = ref(null)
+
+/** 账号统计数据（页面顶部统计卡片） */
+const statsLoading = ref(false)
+const stats = reactive({
+  total: 0,
+  adminCount: 0,
+  staffCount: 0,
+  userCount: 0,
+  enabledCount: 0,
+  disabledCount: 0,
+  noStationCount: 0
+})
+
+/**
+ * 加载账号统计
+ * 后端 /users/stats 用一条 SQL 取回全部计数，这里只发一次请求
+ */
+async function loadStats() {
+  statsLoading.value = true
+  try {
+    const data = await getUserStats()
+    Object.keys(stats).forEach((key) => {
+      stats[key] = Number(data && data[key]) || 0
+    })
+  } catch (e) {
+    // 统计失败不影响列表使用，错误提示已由 axios 拦截器统一处理
+  } finally {
+    statsLoading.value = false
+  }
+}
 
 /** 下拉数据源 */
 const roleList = ref([])
@@ -305,6 +373,8 @@ async function handleStatusChange(row, val) {
     await updateUserStatus(row.id, val)
     row.status = val
     ElMessage.success(`账号已${actionText}`)
+    // 启用/禁用会影响统计卡片里的启用与禁用数量，同步刷新
+    loadStats()
   } catch (e) {
     // 失败时界面状态未变更，无需回滚
   } finally {
@@ -437,6 +507,8 @@ async function submitForm() {
     }
     formVisible.value = false
     loadData()
+    // 新增/编辑会改变各角色人数，统计卡片同步刷新
+    loadStats()
   } catch (e) {
     // 错误提示已由拦截器统一处理
   } finally {
@@ -494,6 +566,7 @@ async function handleDelete(row) {
       query.pageNum -= 1
     }
     loadData()
+    loadStats()
   } catch (e) {
     // 错误提示已由拦截器统一处理
   }
@@ -502,10 +575,31 @@ async function handleDelete(row) {
 onMounted(async () => {
   await loadOptions()
   loadData()
+  loadStats()
 })
 </script>
 
 <style scoped>
+/* 账号统计卡片：一行 4 个，窄屏自动折行 */
+.user-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 1280px) {
+  .user-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .user-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pagination-wrap {
   display: flex;
   justify-content: flex-end;

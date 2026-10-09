@@ -13,6 +13,18 @@ export function pageUsers(params) {
   })
 }
 
+/**
+ * 账号统计：GET /api/users/stats（ADMIN）
+ * 返回 { total, adminCount, staffCount, userCount, enabledCount, disabledCount, noStationCount }
+ * 一条 SQL 取回全部计数，供页面顶部统计卡片使用
+ */
+export function getUserStats() {
+  return request({
+    url: '/users/stats',
+    method: 'get'
+  })
+}
+
 /** 新增用户：POST /api/users，可指定 roleIds、stationId */
 export function createUser(data) {
   return request({

@@ -146,13 +146,19 @@
         <el-result
           v-if="renderError"
           icon="error"
-          title="页面渲染出错"
-          :sub-title="renderError"
+          title="页面加载失败"
           class="layout__error"
         >
+          <template #sub-title>
+            <p class="layout__error-msg">{{ renderError }}</p>
+            <p class="layout__error-tip">
+              如果刚刚更新过代码或重启过开发服务器，浏览器可能仍在使用旧的页面资源。
+              点「强制刷新」重新获取即可，也可以直接按 <b>Ctrl + F5</b>。
+            </p>
+          </template>
           <template #extra>
-            <el-button type="primary" @click="reloadPage">重新加载</el-button>
-            <el-button @click="renderError = null">返回首页</el-button>
+            <el-button type="primary" @click="hardReload">强制刷新</el-button>
+            <el-button @click="goDashboardFromError">返回首页</el-button>
           </template>
         </el-result>
 
@@ -296,10 +302,19 @@ onErrorCaptured((err) => {
   return false
 })
 
-/** 重新加载当前页面 */
-function reloadPage() {
+/** 强制刷新：加时间戳绕过浏览器缓存，重新获取入口与模块清单 */
+function hardReload() {
+  const url = new URL(window.location.href)
+  url.searchParams.set('_v', String(Date.now()))
+  window.location.replace(url.toString())
+}
+
+/** 从错误页返回首页：先清掉错误状态再导航，避免又被兜底拦住 */
+function goDashboardFromError() {
   renderError.value = null
-  window.location.reload()
+  router.push('/dashboard').catch(() => {
+    window.location.href = '/dashboard'
+  })
 }
 
 /** 点击品牌回到首页 */
@@ -390,18 +405,7 @@ onMounted(async () => {
   z-index: 20;
 }
 
-/* 侧边栏右上角的青色光晕，让纯色渐变有层次 */
-.layout__aside::after {
-  content: '';
-  position: absolute;
-  top: -80px;
-  right: -60px;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(22, 211, 200, 0.24) 0%, transparent 70%);
-  pointer-events: none;
-}
+/* 侧边栏保持纯色渐变，不加装饰性光晕，避免"AI 生成感" */
 
 .layout__brand {
   display: flex;
@@ -572,8 +576,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 18px;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(12px);
+  background: #ffffff;
   border-bottom: 1px solid var(--es-border);
   z-index: 10;
 }
@@ -598,7 +601,7 @@ onMounted(async () => {
 }
 
 .layout__header-icon:hover {
-  background: var(--es-brand-gradient-soft);
+  background: #f2f4f7;
   color: var(--es-primary);
 }
 
@@ -716,6 +719,22 @@ onMounted(async () => {
 
 .layout__error {
   margin-top: 60px;
+}
+
+.layout__error-msg {
+  margin: 0 0 10px;
+  color: var(--el-color-danger);
+  font-family: Consolas, Monaco, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.layout__error-tip {
+  max-width: 560px;
+  margin: 0 auto;
+  color: var(--es-text-3);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 /* 过渡动画 */

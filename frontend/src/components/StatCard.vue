@@ -1,14 +1,14 @@
 <template>
   <!--
-    统计指标卡片（v1.1 视觉升级）
-    结构：渐变图标块 + 指标名 + 数值（等宽数字）+ 副标题 + 可选环比标签
-    悬停时轻微上浮并加深阴影，让看板更有质感
+    统计指标卡片
+    结构：纯色图标块 + 指标名 + 数值（等宽数字）+ 副标题 + 可选环比标签
+    视觉取向：白色卡片 + 细边框 + 纯色图标，不放柔光/光晕等装饰，
+    保持企业内部系统的干净观感
   -->
   <div class="sc" :class="`sc--${preset}`">
-    <div class="sc__glow" />
     <div class="sc__body">
       <div class="sc__icon">
-        <el-icon :size="22"><component :is="icon" /></el-icon>
+        <el-icon :size="20"><component :is="icon" /></el-icon>
       </div>
       <div class="sc__content">
         <div class="sc__label">
@@ -68,35 +68,15 @@ const trendClass = computed(() => `sc__trend--${props.trendType}`)
 .sc {
   position: relative;
   padding: 16px 18px;
-  border-radius: var(--es-radius-lg);
+  border-radius: var(--es-radius);
   background: #fff;
   border: 1px solid var(--es-border);
-  box-shadow: var(--es-shadow-sm);
-  overflow: hidden;
-  transition: transform 0.26s var(--es-ease), box-shadow 0.26s var(--es-ease);
+  transition: border-color 0.22s var(--es-ease), box-shadow 0.22s var(--es-ease);
 }
 
 .sc:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--es-shadow);
-}
-
-/* 右上角柔光，用当前预设色做浅色晕染 */
-.sc__glow {
-  position: absolute;
-  top: -46px;
-  right: -30px;
-  width: 130px;
-  height: 130px;
-  border-radius: 50%;
-  opacity: 0.14;
-  background: currentColor;
-  pointer-events: none;
-  transition: opacity 0.26s var(--es-ease);
-}
-
-.sc:hover .sc__glow {
-  opacity: 0.22;
+  border-color: #cfd8e3;
+  box-shadow: var(--es-shadow-sm);
 }
 
 .sc__body {
@@ -106,17 +86,17 @@ const trendClass = computed(() => `sc__trend--${props.trendType}`)
   gap: 14px;
 }
 
+/* 图标块：纯色底 + 轻微圆角，克制的色彩点缀 */
 .sc__icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 13px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   flex-shrink: 0;
   color: #fff;
-  background: var(--sc-gradient);
-  box-shadow: 0 6px 16px var(--sc-shadow);
+  background: var(--sc-solid);
 }
 
 .sc__content {
@@ -186,40 +166,34 @@ const trendClass = computed(() => `sc__trend--${props.trendType}`)
   text-overflow: ellipsis;
 }
 
-/* ---------------- 配色预设 ---------------- */
+/* ---------------- 配色预设（纯色，不使用渐变与光晕） ---------------- */
 .sc--blue {
   color: #1a6dff;
-  --sc-gradient: linear-gradient(135deg, #1a6dff 0%, #4f9bff 100%);
-  --sc-shadow: rgba(26, 109, 255, 0.3);
+  --sc-solid: #1a6dff;
 }
 
 .sc--teal {
   color: #0fb98f;
-  --sc-gradient: linear-gradient(135deg, #0fb98f 0%, #2fe0c0 100%);
-  --sc-shadow: rgba(15, 185, 143, 0.3);
+  --sc-solid: #0fb98f;
 }
 
 .sc--orange {
   color: #f59f00;
-  --sc-gradient: linear-gradient(135deg, #f59f00 0%, #ffc247 100%);
-  --sc-shadow: rgba(245, 159, 0, 0.3);
+  --sc-solid: #f59f00;
 }
 
 .sc--red {
   color: #f04438;
-  --sc-gradient: linear-gradient(135deg, #f04438 0%, #ff7a70 100%);
-  --sc-shadow: rgba(240, 68, 56, 0.3);
+  --sc-solid: #f04438;
 }
 
 .sc--purple {
   color: #7c4dff;
-  --sc-gradient: linear-gradient(135deg, #7c4dff 0%, #a98bff 100%);
-  --sc-shadow: rgba(124, 77, 255, 0.3);
+  --sc-solid: #7c4dff;
 }
 
 .sc--gray {
   color: #64748b;
-  --sc-gradient: linear-gradient(135deg, #64748b 0%, #94a3b8 100%);
-  --sc-shadow: rgba(100, 116, 139, 0.28);
+  --sc-solid: #64748b;
 }
 </style>

@@ -20,6 +20,7 @@ import com.wuyuhang.delivery.mapper.SysUserRoleMapper;
 import com.wuyuhang.delivery.security.LoginUser;
 import com.wuyuhang.delivery.security.UserContext;
 import com.wuyuhang.delivery.vo.UserVO;
+import com.wuyuhang.delivery.vo.UserStatVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -207,6 +208,14 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         userMapper.updateById(user);
         log.info("用户 [{}] 修改了自己的密码", exist.getUsername());
+    }
+
+    /**
+     * 账号统计：供用户管理页顶部的统计卡片使用。
+     */
+    public UserStatVO stat() {
+        UserStatVO vo = userMapper.selectUserStat();
+        return vo == null ? new UserStatVO() : vo;
     }
 
     // ==================== 私有方法 ====================

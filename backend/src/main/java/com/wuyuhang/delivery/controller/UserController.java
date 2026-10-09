@@ -9,6 +9,7 @@ import com.wuyuhang.delivery.dto.query.UserQuery;
 import com.wuyuhang.delivery.security.RequiresPermission;
 import com.wuyuhang.delivery.service.UserService;
 import com.wuyuhang.delivery.vo.UserVO;
+import com.wuyuhang.delivery.vo.UserStatVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -43,6 +44,13 @@ public class UserController {
                                            @RequestParam(defaultValue = "10") long pageSize,
                                            UserQuery query) {
         return Result.success(userService.page(pageNum, pageSize, query));
+    }
+
+    @Operation(summary = "账号统计", description = "供用户管理页顶部统计卡片使用，一条 SQL 取回全部计数")
+    @GetMapping("/stats")
+    @RequiresPermission("system:user:list")
+    public Result<UserStatVO> stats() {
+        return Result.success(userService.stat());
     }
 
     @Operation(summary = "新增用户")

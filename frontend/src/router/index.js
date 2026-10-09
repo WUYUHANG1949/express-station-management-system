@@ -241,23 +241,69 @@ router.beforeEach(async (to, from, next) => {
 
 /* ------------------------------------------------------------------
  * 动态模块加载失败的自愈
- * 页面组件是懒加载的，如果开发服务器重启过、或部署后旧页面仍在新标签里，
- * 浏览器会因请求到已失效的 chunk 而报 "Failed to fetch dynamically imported module"，
- * 此时 Vue Router 无法渲染目标组件，表现就是「内容区一片空白」。
- * 这里统一捕获这类错误并自动刷新一次页面，让用户重新拿到最新的资源清单。
+ *
+ * 背景：页面组件是懒加载的。如果开发服务器重启过、或部署后发布了新版本而旧页面
+ * 仍开着，浏览器会拿着已失效的模块地址去请求，报
+ *   "Failed to fetch dynamically imported module" / "Loading chunk xxx failed"
+ * 此时 Vue Router 无法渲染目标组件，界面表现为：
+ *   左侧菜单、顶部栏、面包屑都正常，只有**内容区一片空白**。
+ *
+ * 处理：捕获这类错误 → 用带时间戳的新地址强制重新加载（绕过浏览器缓存），
+ * 并用 sessionStorage 记录次数，避免服务器真的挂了时无限刷新。
  * ---------------------------------------------------------------- */
 const CHUNK_ERROR_PATTERN =
-  /Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+  /Loading chunk .* failed|Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Outdated Optimize Dep|504 \(Outdated Optimize Dep\)/i
+
+/** 单次会话内允许的自动刷新次数上限，防止死循环 */
+const MAX_AUTO_RELOAD = 2
+const RELOAD_FLAG = 'es_auto_reload_count'
 
 router.onError((error) => {
   const message = (error && error.message) || ''
+
   if (CHUNK_ERROR_PATTERN.test(message)) {
-    ElMessage.warning('页面资源已更新，正在自动刷新…')
-    window.setTimeout(() => window.location.reload(), 600)
+    let count = 0
+    try {
+      count = Number(sessionStorage.getItem(RELOAD_FLAG) || 0)
+    } catch (e) {
+      count = MAX_AUTO_RELOAD // 隐私模式下拿不到 sessionStorage，不自动刷新
+    }
+
+    if (count < MAX_AUTO_RELOAD) {
+      try {
+        sessionStorage.setItem(RELOAD_FLAG, String(count + 1))
+      } catch (e) {
+        /* 忽略写入异常 */
+      }
+      ElMessage.warning('页面资源已更新，正在重新加载…')
+      // 加时间戳强制绕过缓存，重新拿到最新的入口与模块清单
+      window.setTimeout(() => {
+        const url = new URL(window.location.href)
+        url.searchParams.set('_v', String(Date.now()))
+        window.location.replace(url.toString())
+      }, 500)
+      return
+    }
+
+    // 已经自动刷新过仍失败：说明不是缓存问题，明确提示用户手动处理
+    ElMessage.error('页面资源加载失败，请按 Ctrl + F5 强制刷新，或关闭标签页重新打开')
+    console.error('[router error] chunk 加载失败且自动刷新无效', error)
     return
   }
+
   // 其它路由级错误：打印出来方便定位，不影响用户继续操作
   console.error('[router error]', error)
+})
+
+/**
+ * 正常导航后清空刷新计数，让下一次出现问题时仍可自愈
+ */
+router.afterEach(() => {
+  try {
+    sessionStorage.removeItem(RELOAD_FLAG)
+  } catch (e) {
+    /* 忽略 */
+  }
 })
 
 export default router
