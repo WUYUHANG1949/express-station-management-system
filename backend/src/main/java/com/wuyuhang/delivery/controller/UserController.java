@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -56,14 +57,15 @@ public class UserController {
     @Operation(summary = "新增用户")
     @PostMapping
     @RequiresPermission("system:user:add")
-    public Result<Long> create(@Valid @RequestBody UserSaveDTO dto) {
+    public Result<Long> create(@Validated(UserSaveDTO.Create.class) @RequestBody UserSaveDTO dto) {
         return Result.success("新增成功", userService.create(dto));
     }
 
     @Operation(summary = "编辑用户")
     @PutMapping("/{id}")
     @RequiresPermission("system:user:edit")
-    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody UserSaveDTO dto) {
+    public Result<Void> update(@PathVariable Long id,
+                               @Validated(UserSaveDTO.Update.class) @RequestBody UserSaveDTO dto) {
         userService.update(id, dto);
         return Result.success("修改成功", null);
     }

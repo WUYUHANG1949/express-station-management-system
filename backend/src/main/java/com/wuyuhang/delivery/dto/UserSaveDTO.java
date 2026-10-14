@@ -1,6 +1,7 @@
 package com.wuyuhang.delivery.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.groups.Default;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -12,6 +13,9 @@ import java.util.List;
 
 /**
  * 新增 / 编辑用户请求参数。
+ * <p>
+ * 用户名为不可修改字段（见 {@code UserService.update}），因此通过校验分组区分：
+ * 仅「新增」时强制校验用户名；「编辑」时忽略，避免要求前端回传一个本就不会被更新的字段。
  *
  * @author 吴宇航
  */
@@ -19,11 +23,19 @@ import java.util.List;
 @Schema(description = "用户保存请求")
 public class UserSaveDTO implements Serializable {
 
-    @NotBlank(message = "用户名不能为空")
-    @Size(min = 3, max = 20, message = "用户名长度需为 3-20 位")
+    /** 新增分组：继承 Default，故同时触发未显式分组的通用校验（姓名、手机号等） */
+    public interface Create extends Default {
+    }
+
+    /** 编辑分组：同样继承 Default，但不包含仅新增才需要的用户名校验 */
+    public interface Update extends Default {
+    }
+
+    @NotBlank(message = "用户名不能为空", groups = Create.class)
+    @Size(min = 3, max = 20, message = "用户名长度需为 3-20 位", groups = Create.class)
     @Pattern(regexp = "^[a-zA-Z][a-zA-Z0-9_]{2,19}$",
-            message = "用户名需以字母开头，只能包含字母、数字和下划线")
-    @Schema(description = "登录账号")
+            message = "用户名需以字母开头，只能包含字母、数字和下划线", groups = Create.class)
+    @Schema(description = "登录账号（仅新增时使用，编辑时忽略）")
     private String username;
 
     @Schema(description = "密码：新增时必填；编辑时留空表示不修改")
