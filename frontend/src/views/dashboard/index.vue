@@ -47,9 +47,9 @@
     </el-card>
 
     <!-- ==================== 图表区 ==================== -->
-    <el-row :gutter="12">
+    <el-row :gutter="12" class="mb-12">
       <!-- 近 7 日出入库趋势 -->
-      <el-col :xs="24" :md="14">
+      <el-col :xs="24" :md="24">
         <el-card shadow="never" class="chart-card">
           <template #header>
             <div class="chart-card__header">
@@ -62,13 +62,15 @@
             :loading="loadingTrend"
             :empty="trendEmpty"
             empty-text="暂无趋势数据"
-            height="330px"
+            height="300px"
           />
         </el-card>
       </el-col>
+    </el-row>
 
+    <el-row :gutter="12">
       <!-- 快递公司分布 -->
-      <el-col :xs="24" :md="10">
+      <el-col :xs="24" :md="12">
         <el-card shadow="never" class="chart-card">
           <template #header>
             <div class="chart-card__header">
@@ -81,7 +83,26 @@
             :loading="loadingCompany"
             :empty="companyEmpty"
             empty-text="暂无快递公司数据"
-            height="330px"
+            height="300px"
+          />
+        </el-card>
+      </el-col>
+
+      <!-- 快件类型分布 -->
+      <el-col :xs="24" :md="12">
+        <el-card shadow="never" class="chart-card">
+          <template #header>
+            <div class="chart-card__header">
+              <span class="chart-card__title">快件类型分布</span>
+              <el-tag size="small" type="info" effect="plain">按快件量统计</el-tag>
+            </div>
+          </template>
+          <ChartBox
+            :option="parcelTypeOption"
+            :loading="loadingParcelType"
+            :empty="parcelTypeEmpty"
+            empty-text="暂无类型数据"
+            height="300px"
           />
         </el-card>
       </el-col>
@@ -103,7 +124,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import PageContainer from '@/components/PageContainer.vue'
 import StatCard from '@/components/StatCard.vue'
 import ChartBox from '@/components/ChartBox.vue'
-import { getCompanyStats, getOverview, getTrend } from '@/api/stats'
+import { getCompanyStats, getOverview, getParcelTypeStats, getTrend } from '@/api/stats'
 import { formatDateTime, formatNumber, formatPercent } from '@/utils/format'
 
 /** 组件名：供 Layout 的 keep-alive include 使用 */
@@ -115,11 +136,14 @@ const overview = ref(null)
 const trend = ref({ dates: [], inCounts: [], pickupCounts: [] })
 /** 快递公司分布数据 */
 const companyList = ref([])
+/** 快件类型分布数据 */
+const parcelTypeList = ref([])
 
 /** 各区块 loading */
 const loading = ref(false)
 const loadingTrend = ref(false)
 const loadingCompany = ref(false)
+const loadingParcelType = ref(false)
 /** 数据更新时间 */
 const updateTime = ref('-')
 
@@ -314,6 +338,28 @@ const companyOption = computed(() => ({
   ]
 }))
 
+/** 快件类型分布是否为空 */
+const parcelTypeEmpty = computed(() => !parcelTypeList.value || parcelTypeList.value.length === 0)
+
+/** 快件类型分布环形图配置 */
+const parcelTypeOption = computed(() => ({
+  tooltip: { trigger: 'item', formatter: '{b}：{c} 件（{d}%）' },
+  legend: { orient: 'vertical', right: 6, top: 'center', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 12 } },
+  series: [
+    {
+      name: '快件类型',
+      type: 'pie',
+      radius: ['45%', '70%'],
+      center: ['38%', '52%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { formatter: '{b}\n{d}%', fontSize: 12, color: '#606266' },
+      labelLine: { length: 8, length2: 8 },
+      data: parcelTypeList.value || []
+    }
+  ]
+}))
+
 /** 加载概览指标 */
 async function loadOverview() {
   loading.value = true
@@ -358,9 +404,22 @@ async function loadCompany() {
   }
 }
 
+/** 加载快件类型分布 */
+async function loadParcelType() {
+  loadingParcelType.value = true
+  try {
+    const data = await getParcelTypeStats()
+    parcelTypeList.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    parcelTypeList.value = []
+  } finally {
+    loadingParcelType.value = false
+  }
+}
+
 /** 并行加载全部数据 */
 async function loadAll() {
-  await Promise.all([loadOverview(), loadTrend(), loadCompany()])
+  await Promise.all([loadOverview(), loadTrend(), loadCompany(), loadParcelType()])
 }
 
 onMounted(() => {
