@@ -56,3 +56,9 @@ application-local.yml
 *.xlsx
 *.pdf
 !docs/**/*.pdf
+
+# ---------- 文档生成中间产物 ----------
+# 由 docx 生成/解包流程产生的临时目录，不应进版本库
+unpacked_report/
+_unpacked*/
+docs/_gen_*.py
