@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14">
+  <w:p w14:paraId="2D1A5F4C">
+    <w:pPr>
+      <w:pStyle w:val="000006"/>
+      <w:tabs>
+        <w:tab w:val="center" w:pos="4536"/>
+        <w:tab w:val="right" w:pos="9072"/>
+      </w:tabs>
+    </w:pPr>
+    <w:r>
+      <w:tab/>
+    </w:r>
+    <w:r>
+      <w:fldChar w:fldCharType="begin" w:fldLock="0" w:dirty="0"/>
+    </w:r>
+    <w:r>
+      <w:instrText>PAGE</w:instrText>
+    </w:r>
+    <w:r>
+      <w:fldChar w:fldCharType="separate" w:fldLock="0" w:dirty="0"/>
+    </w:r>
+    <w:r>
+      <w:fldChar w:fldCharType="end" w:fldLock="0" w:dirty="0"/>
+    </w:r>
+    <w:r>
+      <w:tab/>
+    </w:r>
+  </w:p>
+</w:ftr>

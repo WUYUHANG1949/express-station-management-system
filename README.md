@@ -394,6 +394,7 @@ v1.1 起全站统一为「深蓝渐变 + 青绿点缀」主题，**改配色只�
 | 文档 | 说明 |
 | ---- | ---- |
 | [docs/spec.md](docs/spec.md) | 软件需求规格说明书（角色分析、业务流程、功能需求、用例描述） |
+| [docs/user-stories.md](docs/user-stories.md) | **用户故事与验收标准**：30 条用户故事、117 条验收标准、敏捷四层拆分、需求↔故事↔用例追溯矩阵 |
 | [docs/database-design.md](docs/database-design.md) | 数据库设计说明书（ER 图、13 张表字段、索引设计与设计取舍） |
 | [docs/api-contract.md](docs/api-contract.md) | 前后端接口契约（统一约定、全部接口、枚举与错误码） |
 | [docs/test-cases.md](docs/test-cases.md) | 测试用例说明书（功能用例、接口用例、覆盖矩阵） |
