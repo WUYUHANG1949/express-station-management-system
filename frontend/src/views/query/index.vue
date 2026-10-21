@@ -188,26 +188,82 @@ async function handleQuery() {
   }
 }
 
+/** 防止连点导致重复弹提示 */
+let lastCopyAt = 0
+
+/** 降级方案：临时 textarea + execCommand（老浏览器 / 剪贴板 API 被拒时） */
+function fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.top = '-9999px'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    ta.setSelectionRange(0, text.length)
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch (e) {
+    return false
+  }
+}
+
+/** 兜底方案：把页面上的取件码选中，用户直接按 Ctrl+C 即可 */
+function selectCodeText(code) {
+  const nodes = document.querySelectorAll('.pq-item__code-value')
+  for (const node of nodes) {
+    if ((node.textContent || '').trim() === String(code)) {
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(range)
+      return true
+    }
+  }
+  return false
+}
+
 /**
- * 复制取件码（secure context 用 clipboard API，否则退回 execCommand）
- * @param {string} code 取件码
+ * 复制取件码，三级降级保证成功：
+ *   1. 现代浏览器 + 安全上下文：navigator.clipboard
+ *   2. 失败则退回 document.execCommand('copy')
+ *   3. 仍失败则把取件码选中，提示用户按 Ctrl+C
+ *
+ * 说明：第 1 步最常失败的原因是「文档未获得焦点」（例如刚从其它窗口切回来点击）
+ * 或浏览器策略拦截，此时不能直接报"复制失败"就结束，必须有降级手段。
  */
 async function copyCode(code) {
   if (!code) return
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(String(code))
-    } else {
-      const input = document.createElement('input')
-      input.value = String(code)
-      document.body.appendChild(input)
-      input.select()
-      document.execCommand('copy')
-      document.body.removeChild(input)
+  const now = Date.now()
+  if (now - lastCopyAt < 800) return
+  lastCopyAt = now
+
+  const text = String(code)
+
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      ElMessage.success('取件码已复制')
+      return
+    } catch (e) {
+      // 落到下一级降级方案
     }
+  }
+
+  if (fallbackCopy(text)) {
     ElMessage.success('取件码已复制')
-  } catch (e) {
-    ElMessage.warning('复制失败，请手动长按选择取件码')
+    return
+  }
+
+  if (selectCodeText(text)) {
+    ElMessage.warning('浏览器未允许自动复制，取件码已选中，请按 Ctrl + C 复制')
+  } else {
+    ElMessage.warning('请手动选中取件码后按 Ctrl + C 复制')
   }
 }
 </script>
@@ -382,6 +438,14 @@ async function copyCode(code) {
   line-height: 1.2;
   font-family: 'Consolas', 'Courier New', monospace;
   word-break: break-all;
+}
+
+/* 取件码用渐变文字实现（background-clip: text），文字本身是透明的，
+   选中时若不做处理会看不到内容。这里保证自动选中/手动选中时都清晰可见。 */
+.pq-item__code-value::selection {
+  background: var(--es-primary);
+  color: #fff;
+  -webkit-text-fill-color: #fff;
 }
 
 .pq-item__copy {
