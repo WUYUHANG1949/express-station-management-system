@@ -275,7 +275,8 @@ public class ParcelService {
             throw new BusinessException("请输入取件码、运单号或手机号");
         }
         LoginUser loginUser = UserContext.require();
-        Long scopeStationId = stationId != null ? stationId : loginUser.getStationId();
+        // 管理员可指定驿站；员工强制收敛到本驿站，忽略前端传入值，防止伪造 stationId 越站查询
+        Long scopeStationId = loginUser.isAdmin() ? stationId : requireOwnStation(loginUser);
         String onlyPhone = isStaffOrAdmin() ? null : currentUserPhone();
 
         List<Parcel> list = parcelMapper.selectByKeyword(keyword.trim(), scopeStationId, onlyPhone, 20);
@@ -571,6 +572,9 @@ public class ParcelService {
 
     /**
      * 数据权限过滤：把当前用户的可见范围写入查询条件，前端无法绕过。
+     * <p>
+     * 关键点：对员工必须**无条件覆盖**前端传入的 stationId。
+     * 早期写成"只有前端没传时才兜底"，导致员工伪造 stationId 就能查询其他驿站的快件。
      */
     private void applyDataScope(ParcelQuery query) {
         LoginUser loginUser = UserContext.require();
@@ -578,14 +582,23 @@ public class ParcelService {
             return;
         }
         if (loginUser.hasRole("STAFF")) {
-            // 员工只能看到本驿站的数据
-            if (loginUser.getStationId() != null && query.getStationId() == null) {
-                query.setStationId(loginUser.getStationId());
-            }
+            query.setStationId(requireOwnStation(loginUser));
             return;
         }
         // 普通用户：只能看本人手机号名下的快件
         query.setLimitPhone(currentUserPhone());
+    }
+
+    /**
+     * 取当前员工所属驿站；未绑定时直接拒绝，
+     * 避免 stationId 为空被当成"全部驿站"而看到越权数据。
+     */
+    private Long requireOwnStation(LoginUser loginUser) {
+        Long stationId = loginUser.getStationId();
+        if (stationId == null) {
+            throw new BusinessException("当前账号未绑定驿站，请联系管理员");
+        }
+        return stationId;
     }
 
     /**

@@ -38,12 +38,18 @@ public class ShipOrderService {
 
     /**
      * 分页条件查询。
+     * <p>
+     * 数据权限：员工**无条件**收敛到本驿站（覆盖前端传入的 stationId），
+     * 防止伪造参数越站查看他站寄件单。
      */
     public PageResult<ShipOrder> page(long pageNum, long pageSize, ShipOrderQuery query) {
-        // 员工只能查看本驿站的寄件单
         LoginUser loginUser = UserContext.require();
-        if (!loginUser.isAdmin() && loginUser.getStationId() != null && query.getStationId() == null) {
-            query.setStationId(loginUser.getStationId());
+        if (!loginUser.isAdmin()) {
+            Long own = loginUser.getStationId();
+            if (own == null) {
+                throw new BusinessException("当前账号未绑定驿站，请联系管理员");
+            }
+            query.setStationId(own);
         }
         var result = shipOrderMapper.selectShipOrderPage(new Page<>(pageNum, pageSize), query);
         result.getRecords().forEach(this::fillDisplayFields);
