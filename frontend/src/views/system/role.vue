@@ -155,7 +155,7 @@
           <el-input
             v-model.trim="form.roleCode"
             :disabled="isEdit"
-            placeholder="例如 ADMIN / STAFF / USER"
+            placeholder="例如 ADMIN / STAFF"
             @input="(val) => (form.roleCode = val.toUpperCase())"
           />
         </el-form-item>

@@ -35,8 +35,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RoleService {
 
-    /** 内置角色不允许删除，避免系统失去管理员 */
-    private static final List<String> BUILT_IN_ROLES = List.of("ADMIN", "STAFF", "USER");
+    /** 内置角色不允许删除，避免系统失去管理员（原 USER 角色已取消，收件人不登录） */
+    private static final List<String> BUILT_IN_ROLES = List.of("ADMIN", "STAFF");
 
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;

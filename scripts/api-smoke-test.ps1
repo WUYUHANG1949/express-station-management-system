@@ -147,13 +147,14 @@ Check-Code "$base/users/page" $staffToken "5.3 staff01 -> /users/page" 403
 Check-Code "$base/stats/station-rank" $staffToken "5.4 staff01 -> /stats/station-rank" 403
 
 $user = Post-Json "$base/auth/login" @{ username = 'user01'; password = '123456' } $null
-$userToken = $user.data.token
-Show "5.5 user01 login" @{ code = $user.code; roles = ($user.data.userInfo.roles -join ','); perms = ($user.data.userInfo.permissions -join ',') }
-$userParcels = Get-Api "$base/parcels/page?pageNum=1&pageSize=100" $userToken
-$phones = ($userParcels.data.list | ForEach-Object { $_.receiverPhone } | Sort-Object -Unique) -join ','
-Show "5.6 user01 parcels (phone-scoped)" @{ total = $userParcels.data.total; distinctPhones = $phones }
-$userMenu = Get-Api "$base/auth/menus" $userToken
-Show "5.7 user01 menus" @{ rootCount = $userMenu.data.Count; roots = ($userMenu.data | ForEach-Object { $_.permName }) -join ' | ' }
+Show "5.5 user01 no longer exists (role USER removed)" @{ code = $user.code; message = $user.message }
+
+$rolesNow = Get-Api "$base/roles/list" $adminToken
+Show "5.6 roles are only ADMIN and STAFF" @{ count = $rolesNow.data.Count; codes = ($rolesNow.data | ForEach-Object { $_.roleCode }) -join ',' }
+
+$roleCodeCheck = Get-Api "$base/users/page?pageNum=1&pageSize=20" $adminToken
+$allRoles = ($roleCodeCheck.data.list | ForEach-Object { $_.roleNames -join '+' }) -join ' | '
+Show "5.7 no account carries USER role" @{ totalAccounts = $roleCodeCheck.data.total; roleNames = $allRoles }
 
 Log ""
 Log "==================== 6. STATS ===================="

@@ -24,15 +24,15 @@
         unit="人"
         icon="OfficeBuilding"
         preset="teal"
-        :sub-text="`仅限本驿站数据 · 未绑定驿站 ${stats.noStationCount} 人`"
+        sub-text="仅限本驿站数据"
       />
       <StatCard
-        label="普通用户"
-        :value="stats.userCount"
+        label="未绑定驿站"
+        :value="stats.noStationCount"
         unit="人"
         icon="Avatar"
         preset="gray"
-        sub-text="仅可查询本人手机号名下快件"
+        sub-text="通常是管理员账号，无需绑定"
       />
     </div>
 
@@ -254,7 +254,6 @@ const stats = reactive({
   total: 0,
   adminCount: 0,
   staffCount: 0,
-  userCount: 0,
   enabledCount: 0,
   disabledCount: 0,
   noStationCount: 0

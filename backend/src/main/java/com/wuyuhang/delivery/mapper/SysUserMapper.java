@@ -56,10 +56,6 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
                           JOIN sys_user_role ur ON ur.user_id = u.id
                           JOIN sys_role r ON r.id = ur.role_id
                   WHERE u.deleted = 0 AND r.role_code = 'STAFF') AS staffCount,
-                (SELECT COUNT(*) FROM sys_user u
-                          JOIN sys_user_role ur ON ur.user_id = u.id
-                          JOIN sys_role r ON r.id = ur.role_id
-                  WHERE u.deleted = 0 AND r.role_code = 'USER') AS userCount,
                 (SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND status = 1) AS enabledCount,
                 (SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND status = 0) AS disabledCount,
                 (SELECT COUNT(*) FROM sys_user WHERE deleted = 0 AND station_id IS NULL) AS noStationCount

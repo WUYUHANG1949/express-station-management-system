@@ -64,7 +64,6 @@
     <div class="table-toolbar">
       <div class="table-toolbar__left">
         <el-tag type="info" effect="plain">共 {{ total }} 条快件记录</el-tag>
-        <el-tag v-if="!isStaff" type="warning" effect="plain">普通用户仅可查看本人名下快件</el-tag>
       </div>
       <div class="table-toolbar__right">
         <el-button :icon="Refresh" :loading="loading" @click="loadData">刷新</el-button>

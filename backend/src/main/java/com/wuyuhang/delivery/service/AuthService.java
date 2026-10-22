@@ -3,7 +3,6 @@ package com.wuyuhang.delivery.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.wuyuhang.delivery.common.BusinessException;
 import com.wuyuhang.delivery.dto.LoginDTO;
-import com.wuyuhang.delivery.dto.RegisterDTO;
 import com.wuyuhang.delivery.entity.Station;
 import com.wuyuhang.delivery.entity.SysPermission;
 import com.wuyuhang.delivery.entity.SysRole;
@@ -90,43 +89,12 @@ public class AuthService {
         return new LoginVO(token, jwtUtil.getExpiration(), buildUserInfo(user, roles, permissions));
     }
 
-    /**
-     * 注册普通用户。新用户默认只拥有 USER 角色。
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public UserInfoVO register(RegisterDTO dto) {
-        if (!dto.getPassword().equals(dto.getConfirmPassword())) {
-            throw new BusinessException("两次输入的密码不一致");
-        }
-        if (userMapper.selectByUsername(dto.getUsername()) != null) {
-            throw new BusinessException("该用户名已被注册");
-        }
-
-        SysUser user = new SysUser();
-        user.setUsername(dto.getUsername());
-        // 密码使用 BCrypt 加密后落库，数据库中不保存明文
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
-        user.setRealName(dto.getRealName());
-        user.setPhone(dto.getPhone());
-        user.setGender(0);
-        user.setStatus(1);
-        userMapper.insert(user);
-
-        // 绑定默认角色 USER
-        SysRole defaultRole = roleMapper.selectOne(
-                Wrappers.<SysRole>lambdaQuery().eq(SysRole::getRoleCode, "USER").last("LIMIT 1"));
-        if (defaultRole != null) {
-            SysUserRole userRole = new SysUserRole();
-            userRole.setUserId(user.getId());
-            userRole.setRoleId(defaultRole.getId());
-            userRoleMapper.insert(userRole);
-        }
-
-        List<String> roles = userMapper.selectRoleCodesByUserId(user.getId());
-        List<String> permissions = permissionMapper.selectPermCodesByUserId(user.getId());
-        log.info("新用户 [{}] 注册成功", user.getUsername());
-        return buildUserInfo(user, roles, permissions);
-    }
+    // ------------------------------------------------------------------
+    // 自助注册已取消。
+    // 原 register(RegisterDTO) 方法已删除：收件人不需要账号，查件走免登录自助查询；
+    // 系统内账号一律由管理员在「用户管理」中创建（UserService.create），
+    // 并显式分配 ADMIN / STAFF 角色。因此不存在"注册即自动获得某角色"的逻辑。
+    // ------------------------------------------------------------------
 
     /**
      * 获取当前登录用户信息（前端刷新页面后重新拉取用户状态）。

@@ -114,7 +114,7 @@
             </el-form-item>
             <el-form-item label="手机号" prop="phone">
               <el-input v-model.trim="profileForm.phone" placeholder="请输入 11 位手机号" maxlength="11" clearable />
-              <div class="pf-form-tip">普通用户仅能查询本人手机号名下的快件，请确保手机号准确</div>
+              <div class="pf-form-tip">手机号用于关联你名下的快件，请确保填写准确</div>
             </el-form-item>
             <el-form-item label="性别" prop="gender">
               <el-radio-group v-model="profileForm.gender">
@@ -297,11 +297,11 @@
  * 个人中心（v1.1 视觉与功能升级）
  * 功能：
  *  - 个人信息横幅：头像（内置渐变头像 / 图片链接）、真实姓名、账号、角色、手机号脱敏、性别、所属驿站等
- *  - 数据统计小卡：角色数、权限数、待催取逾期件（员工/管理员）或我的快件（普通用户）、账号状态
+ *  - 数据统计小卡：角色数、权限数、待催取逾期件、账号状态
  *  - 基本资料：PUT /api/users/profile
  *  - 修改密码：PUT /api/users/self/password（成功后清理登录态并跳转登录页）
  *  - 账号安全：展示令牌类型 / 有效期 / 本次登录时间 / 密码加密方式（纯展示，未新增后端接口）
- *  - 最近动态：员工与管理员取通知记录 GET /api/notifications/page，普通用户取本人快件 GET /api/parcels/page
+ *  - 最近动态：员工与管理员取通知记录 GET /api/notifications/page，无通知权限时退化取本人快件 GET /api/parcels/page
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -435,7 +435,7 @@ function togglePhoneVisible() {
  * ================================================================ */
 /** 待催取逾期件数量 */
 const overdueCount = ref(0)
-/** 普通用户本人快件总数 */
+/** 本人快件总数（无通知权限时的退化数据源） */
 const parcelTotal = ref(0)
 
 /** 统计卡（仅展示真实可取到的数据） */
@@ -772,7 +772,7 @@ const securityRows = computed(() => [
 ])
 
 /* ==================================================================
- * 七、最近动态（员工/管理员：通知记录；普通用户：我的快件）
+ * 七、最近动态（员工/管理员：通知记录；无权限时退化为我的快件）
  * ================================================================ */
 const loadingActivity = ref(false)
 const notifyList = ref([])

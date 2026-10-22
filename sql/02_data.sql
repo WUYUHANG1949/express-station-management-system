@@ -6,8 +6,11 @@
 --    admin   / 123456   系统管理员
 --    staff01 / 123456   幸福小区快递驿站 员工
 --    staff02 / 123456   大学城菜鸟驿站   员工
---    user01  / 123456   普通用户（收件人）
---    user02  / 123456   普通用户（收件人）
+--
+--  角色说明：系统只有两类登录角色（ADMIN / STAFF）。
+--  收件人**不需要账号**：查件走免登录自助查询（/api/public/pickup-query，
+--  支持手机号 / 取件码 / 运单号三种入参），因此不再设「普通用户」角色。
+--  账号一律由管理员在「用户管理」中创建，系统不开放自助注册。
 -- ============================================================================
 
 USE `express_station`;
@@ -19,8 +22,7 @@ SET NAMES utf8mb4;
 DELETE FROM `sys_role`;
 INSERT INTO `sys_role` (`id`, `role_code`, `role_name`, `description`, `sort`, `status`)
 VALUES (1, 'ADMIN', '系统管理员', '拥有系统全部权限，负责用户、角色、驿站等基础数据维护', 1, 1),
-       (2, 'STAFF', '驿站员工', '负责快件入库登记、取件核销、寄件受理、异常件处理等日常业务', 2, 1),
-       (3, 'USER', '普通用户', '收件人，可查询本人名下快件的在库与取件状态', 3, 1);
+       (2, 'STAFF', '驿站员工', '负责快件入库登记、取件核销、寄件受理、异常件处理等日常业务', 2, 1);
 
 -- ----------------------------------------------------------------------------
 -- 权限（菜单 + 按钮）
@@ -103,9 +105,8 @@ WHERE `id` IN (1, 10, 11, 12, 13, 14, 15, 17, 18, 19, 102,
                110,
                70);
 
--- USER：首页 + 我的快件 + 个人中心
-INSERT INTO `sys_role_permission` (`role_id`, `perm_id`)
-VALUES (3, 1), (3, 11), (3, 70);
+-- 说明：不再有「普通用户」角色，因此也没有 USER 的授权段。
+-- 收件人查件走免登录接口，不依赖任何角色或权限。
 
 -- ----------------------------------------------------------------------------
 -- 用户（密码统一 123456）
@@ -114,13 +115,11 @@ DELETE FROM `sys_user`;
 INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `gender`, `station_id`, `status`)
 VALUES (1, 'admin', '$2a$10$/nw9pF5s75pR3mwGJMmFauv40lC4KIIxWen0E/q77fj47tnlPLiAK', '吴宇航', '13800000001', 1, NULL, 1),
        (2, 'staff01', '$2a$10$hVXzdkxcpbicxczrhu3xm.A3M97hNn8qeKNiyjeb18AlX15KbNMbG', '李思远', '13800000002', 1, 1, 1),
-       (3, 'staff02', '$2a$10$ZhEGZGJ.Sofdm77RLb.ozus4U2qu101sa2jXXIWmoY5mGn7ODNUeW', '陈欣怡', '13800000003', 2, 2, 1),
-       (4, 'user01', '$2a$10$852jWMUlBt9DN0OjUEbgcuIA4NLQ9xrU6x57eoGcfScX7EgrAj46i', '王小明', '13900000001', 1, NULL, 1),
-       (5, 'user02', '$2a$10$x9RxJT64i5PWpIB456Hqn.n8ucWXvfnSY6S8aHEl4o4d.IznZaXz6', '赵丽娜', '13900000002', 2, NULL, 1);
+       (3, 'staff02', '$2a$10$ZhEGZGJ.Sofdm77RLb.ozus4U2qu101sa2jXXIWmoY5mGn7ODNUeW', '陈欣怡', '13800000003', 2, 2, 1);
 
 DELETE FROM `sys_user_role`;
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)
-VALUES (1, 1), (2, 2), (3, 2), (4, 3), (5, 3);
+VALUES (1, 1), (2, 2), (3, 2);
 
 -- ----------------------------------------------------------------------------
 -- 驿站

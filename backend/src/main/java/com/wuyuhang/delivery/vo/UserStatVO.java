@@ -26,9 +26,6 @@ public class UserStatVO implements Serializable {
     @Schema(description = "驿站员工人数")
     private Integer staffCount = 0;
 
-    @Schema(description = "普通用户人数")
-    private Integer userCount = 0;
-
     @Schema(description = "启用账号数")
     private Integer enabledCount = 0;
 
