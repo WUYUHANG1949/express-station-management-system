@@ -1,8 +1,8 @@
 package com.wuyuhang.delivery.controller;
 
+import com.wuyuhang.delivery.common.BusinessException;
 import com.wuyuhang.delivery.common.Result;
 import com.wuyuhang.delivery.dto.LoginDTO;
-import com.wuyuhang.delivery.dto.RegisterDTO;
 import com.wuyuhang.delivery.service.AuthService;
 import com.wuyuhang.delivery.vo.LoginVO;
 import com.wuyuhang.delivery.vo.MenuVO;
@@ -38,10 +38,23 @@ public class AuthController {
         return Result.success("登录成功", authService.login(dto));
     }
 
-    @Operation(summary = "用户注册", description = "注册成功后默认分配「普通用户」角色")
+    /**
+     * 自助注册已关闭。
+     * <p>
+     * 收件人不需要账号：改用免登录自助查询（{@code /api/public/pickup-query}
+     * 支持手机号 / 取件码 / 运单号）。系统内的登录账号由管理员在「用户管理」中创建，
+     * 因此不再开放注册入口。
+     * <p>
+     * 这里保留路径并明确返回提示，而不是直接删掉映射：
+     * 老版本前端或书签访问时能拿到可读的说明，而不是 404。
+     */
+    @Operation(summary = "用户注册（已关闭）",
+            description = "自助注册已下线：收件人无需账号，改用免登录自助查询；"
+                    + "系统内账号由管理员创建")
     @PostMapping("/register")
-    public Result<UserInfoVO> register(@Valid @RequestBody RegisterDTO dto) {
-        return Result.success("注册成功，请登录", authService.register(dto));
+    public Result<Void> register() {
+        throw new BusinessException("自助注册已关闭：收件人无需账号，请直接使用自助查询；"
+                + "系统内账号请联系管理员创建");
     }
 
     @Operation(summary = "退出登录", description = "JWT 为无状态令牌，前端清除本地令牌即可")

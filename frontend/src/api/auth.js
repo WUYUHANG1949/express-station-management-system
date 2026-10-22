@@ -1,5 +1,9 @@
 /**
  * 认证模块接口（契约第 2 节）
+ *
+ * 说明：自助注册（POST /api/auth/register）已下线 —— 收件人不需要账号，
+ * 改用免登录自助查询；系统内账号由管理员在「用户管理」中创建。
+ * 因此本模块不再导出 register。
  */
 import request from '@/utils/request'
 
@@ -7,15 +11,6 @@ import request from '@/utils/request'
 export function login(data) {
   return request({
     url: '/auth/login',
-    method: 'post',
-    data
-  })
-}
-
-/** 注册：POST /api/auth/register（无需登录，默认分配 USER 角色） */
-export function register(data) {
-  return request({
-    url: '/auth/register',
     method: 'post',
     data
   })

@@ -188,6 +188,28 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 按取件码公开查询：同样只返回仍在驿站、需要来取的件 -->
+    <select id="selectPublicByPickupCode" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.pickup_code = #{pickupCode}
+          AND p.status IN ('IN_STORE', 'DELIVERING')
+        LIMIT 1
+    </select>
+
+    <!-- 按运单号公开查询：同样只返回仍在驿站、需要来取的件 -->
+    <select id="selectPublicByWaybillNo" resultMap="ParcelResultMap">
+        SELECT
+        <include refid="parcelColumns"/>
+        <include refid="parcelJoins"/>
+        WHERE p.deleted = 0
+          AND p.waybill_no = #{waybillNo}
+          AND p.status IN ('IN_STORE', 'DELIVERING')
+        LIMIT 1
+    </select>
+
     <!-- ==================== 仍占用货位的快件（货位地图用） ==================== -->
     <select id="selectOnShelfParcels" resultMap="ParcelResultMap">
         SELECT

@@ -107,9 +107,14 @@
           </div>
         </div>
 
+        <!--
+          收件人自助查询入口。
+          说明：收件人不需要注册账号（自助注册已下线），因此这里不给"立即注册"链接，
+          只提供免登录查询入口；系统内账号由管理员在「用户管理」中创建。
+        -->
         <div class="login__card-footer">
-          <span class="text-muted">还没有账号？</span>
-          <el-link type="primary" :underline="false" @click="goRegister">立即注册</el-link>
+          <span class="text-muted">收件人查件？</span>
+          <el-link type="primary" :underline="false" @click="goQuery">免登录自助查询 →</el-link>
         </div>
       </el-card>
 
@@ -183,9 +188,9 @@ function fillAccount(account) {
   ElMessage.success(`已填充「${account.role}」账号，点击登录即可`)
 }
 
-/** 跳转注册页 */
-function goRegister() {
-  router.push('/register')
+/** 跳转免登录自助查询页（收件人不用登录） */
+function goQuery() {
+  router.push('/query')
 }
 
 /**
@@ -216,14 +221,10 @@ async function handleLogin() {
 }
 
 /**
- * 页面挂载：若从注册页跳转而来则回填用户名；否则默认填充演示管理员账号，便于快速体验
+ * 页面挂载：默认填充演示管理员账号，便于快速体验。
+ * （自助注册已下线，不再有从注册页带回用户名的场景）
  */
 onMounted(() => {
-  const username = route.query.username
-  if (username) {
-    form.username = String(username)
-    return
-  }
   form.username = 'admin'
   form.password = '123456'
 })

@@ -19,10 +19,11 @@ export const routes = [
     meta: { title: '登录', public: true, hidden: true }
   },
   {
+    // 自助注册已下线：收件人不需要账号，改用 /query 免登录查询。
+    // 保留一条重定向，兼容旧书签与旧链接，避免直接 404。
     path: '/register',
-    name: 'Register',
-    component: () => import('@/views/register/index.vue'),
-    meta: { title: '注册', public: true, hidden: true }
+    redirect: '/login?from=register-disabled',
+    meta: { title: '注册已关闭', public: true, hidden: true }
   },
   {
     path: '/403',

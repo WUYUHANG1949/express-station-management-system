@@ -217,16 +217,9 @@ $recalc = Invoke-RestMethod -Uri "$base/shelves/recalculate?stationId=1" -Method
 Show "9.8 recalculate shelf usage" @{ code = $recalc.code; message = $recalc.message }
 
 Log ""
-Log "==================== 10. REGISTER ===================="
-$newUser = 'testuser' + (Get-Random -Minimum 1000 -Maximum 9999)
-$reg = Post-Json "$base/auth/register" @{ username = $newUser; password = '123456'; confirmPassword = '123456'; realName = 'RegTest'; phone = '13800009999' } $null
-Show "10.1 register ($newUser)" @{ code = $reg.code; message = $reg.message; roles = ($reg.data.roles -join ',') }
-$regDup = Post-Json "$base/auth/register" @{ username = $newUser; password = '123456'; confirmPassword = '123456'; realName = 'RegTest'; phone = '13800009999' } $null
-Show "10.2 duplicate register" @{ code = $regDup.code; message = $regDup.message }
-$r3 = Post-Json "$base/auth/register" @{ username = ('x' + (Get-Random -Minimum 1000 -Maximum 9999)); password = '123456'; confirmPassword = '654321'; realName = 'RegTest'; phone = '13800009998' } $null
-Show "10.3 password mismatch" @{ code = $r3.code; message = $r3.message }
-$r4 = Post-Json "$base/auth/register" @{ username = 'ab'; password = '123456'; confirmPassword = '123456'; realName = 'RegTest'; phone = '13800009997' } $null
-Show "10.4 invalid username" @{ code = $r4.code; message = $r4.message }
+Log "==================== 10. REGISTER (DISABLED) ===================="
+$reg = Post-Json "$base/auth/register" @{ username = 'testuser9999'; password = '123456'; confirmPassword = '123456'; realName = 'RegTest'; phone = '13800009999' } $null
+Show "10.1 self-registration must be rejected" @{ code = $reg.code; message = $reg.message }
 
 Log ""
 Log "==================== 11. USER MGMT WRITE ===================="
@@ -301,20 +294,29 @@ $sc2 = Get-Api "$base/stats/screen" $staffToken
 Show "16.2 screen (staff, stationRank must be empty)" @{ code = $sc2.code; stationRank = $sc2.data.stationRank.Count; inStore = $sc2.data.overview.inStoreCount }
 
 Log ""
-Log "==================== 17. V1.1 PUBLIC QUERY (NO AUTH) ===================="
-$pub = Get-Api "$base/public/pickup-query?phone=13900000001" $null
-Show "17.1 public query without token" @{ code = $pub.code; message = $pub.message; count = $pub.data.Count; waybillNo = $pub.data[0].waybillNo; pickupCode = $pub.data[0].pickupCode; statusName = $pub.data[0].statusName; stationName = $pub.data[0].stationName }
+Log "==================== 17. PUBLIC QUERY (NO AUTH, 3 INPUT TYPES) ===================="
+$pub = Get-Api "$base/public/pickup-query?keyword=13900000001" $null
+Show "17.1 by phone (no token)" @{ code = $pub.code; message = $pub.message; count = $pub.data.Count; waybillNo = $pub.data[0].waybillNo; pickupCode = $pub.data[0].pickupCode; phoneInResult = $pub.data[0].receiverPhone }
 
 $leak = $pub.data[0]
-Show "17.2 internal fields must be hidden" @{ stationId = $leak.stationId; shelfId = $leak.shelfId; operatorId = $leak.operatorId; freight = $leak.freight; remark = $leak.remark }
+Show "17.2 internal fields must be hidden" @{ stationId = $leak.stationId; shelfId = $leak.shelfId; operatorId = $leak.operatorId; operatorName = $leak.operatorName; freight = $leak.freight; remark = $leak.remark }
 
-$pubBad = Get-Api "$base/public/pickup-query?phone=123" $null
-Show "17.3 public query bad phone" @{ code = $pubBad.code; message = $pubBad.message }
+$pubCode = Get-Api "$base/public/pickup-query?keyword=10012034" $null
+Show "17.3 by pickup code (phone must be masked)" @{ code = $pubCode.code; count = $pubCode.data.Count; pickupCode = $pubCode.data[0].pickupCode; phoneInResult = $pubCode.data[0].receiverPhone }
 
-$pubNone = Get-Api "$base/public/pickup-query?phone=13700000000" $null
-Show "17.4 public query unknown phone" @{ code = $pubNone.code; count = $pubNone.data.Count }
+$pubWb = Get-Api "$base/public/pickup-query?keyword=SF1234567890123" $null
+Show "17.4 by waybill (phone must be masked)" @{ code = $pubWb.code; count = $pubWb.data.Count; waybillNo = $pubWb.data[0].waybillNo; phoneInResult = $pubWb.data[0].receiverPhone }
 
-Check-Code "$base/parcels/page" $null "17.5 protected endpoint still requires auth" 401
+$pubBad = Get-Api "$base/public/pickup-query?keyword=123" $null
+Show "17.5 bad input format" @{ code = $pubBad.code; message = $pubBad.message }
+
+$pubNone = Get-Api "$base/public/pickup-query?keyword=13700000000" $null
+Show "17.6 unknown phone" @{ code = $pubNone.code; count = $pubNone.data.Count }
+
+$pubOld = Get-Api "$base/public/pickup-query?phone=13900000001" $null
+Show "17.7 legacy phone param still works" @{ code = $pubOld.code; count = $pubOld.data.Count }
+
+Check-Code "$base/parcels/page" $null "17.8 protected endpoint still requires auth" 401
 
 Log ""
 Log "==================== 18. V1.1 VALIDATION ===================="

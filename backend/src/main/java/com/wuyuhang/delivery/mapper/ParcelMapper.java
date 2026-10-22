@@ -87,6 +87,18 @@ public interface ParcelMapper extends BaseMapper<Parcel> {
     List<Parcel> selectPublicByPhone(@Param("phone") String phone, @Param("limit") Integer limit);
 
     /**
+     * 公开查询：按取件码查询（免登录）。
+     * 只返回在库待取与派送中的快件，已取件/已退回不返回。
+     */
+    Parcel selectPublicByPickupCode(@Param("pickupCode") String pickupCode);
+
+    /**
+     * 公开查询：按运单号查询（免登录）。
+     * 只返回在库待取与派送中的快件，已取件/已退回不返回。
+     */
+    Parcel selectPublicByWaybillNo(@Param("waybillNo") String waybillNo);
+
+    /**
      * 查询仍占用货位的快件，供货位地图按库位分组展示。
      *
      * @param stationId 驿站ID，为空表示全部驿站

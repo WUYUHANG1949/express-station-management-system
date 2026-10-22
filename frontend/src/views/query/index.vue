@@ -17,7 +17,7 @@
         </div>
         <div class="pq__brand-text">
           <h1 class="pq__title">快件收发管理系统</h1>
-          <p class="pq__subtitle">输入手机号，查询您的取件码</p>
+          <p class="pq__subtitle">输入手机号 / 取件码 / 运单号，查询您的取件码</p>
         </div>
       </header>
 
@@ -25,16 +25,15 @@
       <section class="pq__card">
         <div class="pq__search">
           <el-input
-            v-model="phone"
+            v-model="keyword"
             size="large"
-            maxlength="11"
-            placeholder="请输入收件人手机号（11 位）"
+            maxlength="24"
+            placeholder="手机号 / 8 位取件码 / 运单号"
             clearable
-            @input="handlePhoneInput"
             @keyup.enter="handleQuery"
           >
             <template #prefix>
-              <el-icon><Iphone /></el-icon>
+              <el-icon><Search /></el-icon>
             </template>
           </el-input>
           <el-button type="primary" size="large" :loading="loading" @click="handleQuery">查询取件码</el-button>
@@ -46,13 +45,14 @@
         <!-- 查询前：使用说明 -->
         <div v-else-if="!searched" class="pq__intro">
           <el-icon><InfoFilled /></el-icon>
-          <p>仅展示仍在驿站待取的快件；如需查看历史记录请联系驿站</p>
+          <p>支持三种查询方式：<b>手机号</b>（返回名下所有待取件）、<b>取件码</b>、<b>运单号</b>。</p>
+          <p>仅展示仍在驿站待取的快件；已取件与已退回的记录不显示。</p>
         </div>
 
         <!-- 无结果 -->
         <el-empty
           v-else-if="!list.length"
-          description="该手机号下暂无待取快件，请核对号码或联系驿站"
+          description="未查询到待取快件，请核对手机号 / 取件码 / 运单号"
           :image-size="90"
         />
 
@@ -128,23 +128,29 @@
 
 <script setup>
 /**
- * 收件人自助查询取件码（v1.1，免登录）
- * 接口：queryPickupByPhone(phone) → 仍在库待取的快件（后端最多返回 20 条）
- * 交互：输入手机号 → 回车或点查询 → 结果卡片列出取件码 → 点击卡片复制取件码
+ * 收件人自助查询取件码（免登录）
+ *
+ * 设计说明：收件人**不需要注册账号**，一个输入框支持三种查询方式，后端按格式自动识别：
+ *   - 11 位、1[3-9] 开头  → 手机号，返回该号码名下所有待取件（最多 20 条）
+ *   - 8 位纯数字          → 取件码，返回对应的那一件
+ *   - 字母前缀 + 数字      → 运单号，返回对应的那一件
+ *
+ * 接口：queryPickupByKeyword(keyword)
+ * 交互：输入 → 回车或点查询 → 结果卡片列出取件码 → 点击卡片复制取件码
  * 说明：本页不涉及登录态，不引入 useUserStore，避免未登录访客触发鉴权逻辑
  */
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Box, CopyDocument, InfoFilled, Iphone } from '@element-plus/icons-vue'
-import { queryPickupByPhone } from '@/api/public'
+import { Box, CopyDocument, InfoFilled, Search } from '@element-plus/icons-vue'
+import { queryPickupByKeyword } from '@/api/public'
 import { PARCEL_STATUS, PARCEL_STATUS_NAME, PARCEL_TYPE, dictLabel, dictType } from '@/utils/dict'
 import { formatDateTime, formatMoney, formatNumber } from '@/utils/format'
 
 /** 组件名：供 keep-alive / 路由使用 */
 defineOptions({ name: 'PickupQuery' })
 
-/** 手机号（只保留数字，最多 11 位） */
-const phone = ref('')
+/** 查询关键字：手机号 / 取件码 / 运单号 */
+const keyword = ref('')
 /** 查询结果 */
 const list = ref([])
 /** 是否正在查询 */
@@ -152,14 +158,10 @@ const loading = ref(false)
 /** 是否已经查询过（用于区分「查询前说明」与「无结果」） */
 const searched = ref(false)
 
-/**
- * 输入框过滤：只允许数字，最多 11 位
- * @param {string} value 输入框当前值
- */
-function handlePhoneInput(value) {
-  const digits = String(value || '').replace(/\D/g, '').slice(0, 11)
-  if (digits !== value) phone.value = digits
-}
+/** 三种入参格式（与后端 PublicService 保持一致） */
+const PHONE_RE = /^1[3-9]\d{9}$/
+const PICKUP_CODE_RE = /^\d{8}$/
+const WAYBILL_RE = /^[A-Za-z]{2,4}\d{6,18}$/
 
 /** 逾期保管费（> 0 表示已逾期） */
 function overdueFeeOf(item) {
@@ -168,19 +170,23 @@ function overdueFeeOf(item) {
 
 /** 执行查询 */
 async function handleQuery() {
-  const value = String(phone.value || '').trim()
-  if (!/^1[3-9]\d{9}$/.test(value)) {
-    ElMessage.warning('请输入正确的 11 位手机号')
+  const value = String(keyword.value || '').trim()
+  if (!value) {
+    ElMessage.warning('请输入手机号、取件码或运单号')
+    return
+  }
+  if (!PHONE_RE.test(value) && !PICKUP_CODE_RE.test(value) && !WAYBILL_RE.test(value)) {
+    ElMessage.warning('格式不正确：请输入 11 位手机号、8 位取件码或运单号')
     return
   }
 
   loading.value = true
   try {
-    const data = await queryPickupByPhone(value)
+    const data = await queryPickupByKeyword(value)
     list.value = Array.isArray(data) ? data : []
     searched.value = true
   } catch (e) {
-    // 业务错误（手机号格式等）已由响应拦截器弹提示，这里只做状态兜底
+    // 业务错误已由响应拦截器弹提示，这里只做状态兜底
     list.value = []
     searched.value = false
   } finally {
