@@ -9,12 +9,18 @@
 | 数据库名 | `express_station` |
 | 字符集 / 排序规则 | `utf8mb4` / `utf8mb4_general_ci` |
 | 存储引擎 | InnoDB |
-| 表数量 | 13 张（5 张系统权限表 + 8 张业务表），共 146 个字段 |
+| 表数量 | 14 张（6 张认证与权限表 + 8 张业务表），共 156 个字段 |
+| 验证码表 | `sms_code`（找回密码验证码，10 个字段、2 个普通索引） |
 
-> **V1.1 变更说明**：新增第 13 张表 `notify_record`（取件通知记录表，14 个字段、5 个普通索引），
+> **V1.1 变更说明**：新增取件通知记录表 `notify_record`（第 13 个表，14 个字段、5 个普通索引），
 > 业务表由 7 张增加到 8 张，字段总数由 132 个增加到 146 个；初始化权限由 35 条增加到 43 条；
 > 并在第 5 章补充「货位占用统一口径」这一关键设计说明。全文表述与 `sql/01_schema.sql`、
 > `sql/02_data.sql`、`backend/src/main/java/**` 源码逐条核对。
+>
+> **本次修订（找回密码）**：新增第 14 个表 `sms_code`（验证码表，10 个字段、2 个普通索引），
+> 用于免登录找回密码的 6 位验证码落库；表数由 13 张增加到 **14 张**，字段总数 146 → **156**，
+> 索引总数 50 → **53**（14 个主键索引、9 个唯一索引、30 个普通索引）。
+> 该表与 `sys_user` 之间是**逻辑关联**（`username` + `phone` 与用户记录匹配），不建物理外键。
 
 ---
 
@@ -22,7 +28,7 @@
 
 ### 1.1 设计原则
 
-1. **权限与业务分离**：将与身份认证、授权相关的表统一以 `sys_` 前缀命名，集中为 5 张表；与快件收发业务相关的表单独组织为 8 张表。两类表在逻辑上通过 `user_id`、`operator_id`、`station_id` 等字段关联，便于权限模块独立演进。
+1. **权限与业务分离**：将与身份认证、授权相关的表统一以 `sys_` 前缀命名，集中为 5 张表；验证码表 `sms_code` 同属认证支撑表，但按功能命名（不加 `sys_` 前缀），因此认证与权限相关表共 6 张；与快件收发业务相关的表单独组织为 8 张表。两类表在逻辑上通过 `user_id`、`operator_id`、`station_id` 等字段关联，便于权限模块独立演进；`sms_code` 与 `sys_user` 通过 `username` + `phone` 逻辑匹配，不设外键。
 2. **满足第三范式并适度冗余**：主数据与关联数据通过主键关联，消除传递依赖。在查询频繁且业务语义明确的场景下允许冗余，例如 `parcel_trace` 冗余 `waybill_no` 与 `operator_name`，`pickup_record` 冗余 `waybill_no`、`pickup_code`、`operator_name`，`notify_record` 冗余 `waybill_no`、`pickup_code`、`operator_name`，以减少多表连接、提升查询效率并固化业务发生时的现场信息。
 3. **主键统一策略**：所有表使用 `BIGINT` 类型的自增主键 `id`，与后端 Java 的 `Long` 类型一一对应；业务编号（如 `waybill_no`、`order_no`、`station_code`、`shelf_code`）通过唯一索引单独约束，不用作物理主键，保证业务编号变化时不影响关联关系。
 4. **状态使用可读枚举**：业务状态统一使用 `VARCHAR` 存储大写字符串枚举值（如 `IN_STORE`、`PICKED_UP`、`PENDING`），不使用数字编码，使数据库记录具备自解释能力，便于直接排查问题与导出报表。
@@ -65,9 +71,9 @@
 
 ### 2.1 实体识别
 
-依据需求分析，系统抽象出 13 个实体，并划分为两个实体群：
+依据需求分析，系统抽象出 14 个实体，并划分为两个实体群：
 
-**系统权限实体群**：用户（`sys_user`）、角色（`sys_role`）、用户角色关联（`sys_user_role`）、权限（`sys_permission`）、角色权限关联（`sys_role_permission`）。
+**认证与权限实体群**：用户（`sys_user`）、角色（`sys_role`）、用户角色关联（`sys_user_role`）、权限（`sys_permission`）、角色权限关联（`sys_role_permission`）、验证码（`sms_code`）。
 
 **业务实体群**：驿站（`station`）、货架库位（`shelf`）、快件（`parcel`）、快件轨迹（`parcel_trace`）、取件记录（`pickup_record`）、寄件单（`ship_order`）、异常件记录（`exception_record`）、取件通知记录（`notify_record`）。
 
@@ -93,6 +99,7 @@ erDiagram
     sys_user ||--o{ ship_order : "受理"
     sys_user ||--o{ exception_record : "处理"
     sys_user ||--o{ notify_record : "发送通知"
+    sys_user ||--o{ sms_code : "按账号名与手机号匹配"
     parcel ||--o{ parcel_trace : "拥有轨迹"
     parcel ||--|| pickup_record : "对应取件"
     parcel ||--o{ exception_record : "登记异常"
@@ -241,6 +248,19 @@ erDiagram
         VARCHAR operator_name "操作人姓名冗余"
         DATETIME send_time "发送时间"
     }
+
+    sms_code {
+        BIGINT id PK "验证码主键"
+        VARCHAR phone "接收手机号"
+        VARCHAR username "申请找回的账号名"
+        VARCHAR code "6 位数字验证码"
+        VARCHAR scene "场景：PASSWORD_RESET"
+        DATETIME expire_time "过期时间"
+        TINYINT used "是否已使用"
+        INT attempts "校验失败次数"
+        VARCHAR client_ip "请求方 IP"
+        DATETIME create_time "创建时间"
+    }
 ```
 
 ### 2.3 联系类型说明
@@ -262,6 +282,7 @@ erDiagram
 | 驿站—通知记录 | `station` → `notify_record` | 一对多 | 通知按驿站归属统计与筛选，员工只能查看本驿站的通知记录 |
 | 用户—业务操作 | `sys_user` → `parcel` / `ship_order` / `exception_record` | 一对多 | 通过 `operator_id`、`handler_id` 记录操作人 |
 | 用户—通知发送 | `sys_user` → `notify_record` | 一对多 | 手动发送与批量催取记录 `operator_id`、`operator_name`；系统自动发送时为 `NULL` |
+| 用户—验证码 | `sys_user` ↔ `sms_code` | 逻辑关联（无外键） | `sms_code` 记录 `username` 与 `phone`，申请与重置时要求二者同时与 `sys_user` 匹配；不建物理外键，便于验证码过期后清理且不影响用户数据 |
 
 ### 2.4 参照完整性的实现方式
 
@@ -537,15 +558,50 @@ v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为
 4. **与业务事务的关系。** 到件通知由收件登记成功后自动写入、取件确认通知由核销成功后自动写入，二者都在主业务事务内完成落库；但通知写入被 `NotifyService.autoSend` 捕获异常，通知失败不会导致入库或核销失败，避免「短信发不出去导致快件入不了库」。
 5. **去重与限流。** 批量催取前先按 `parcel_id`、`notify_type` 与当天日期统计是否已发送（依赖 `idx_notify_parcel` 与 `idx_notify_time`），同一快件当天不重复发送；单次批量操作处理上限为 50 件，避免误操作给客户造成骚扰。
 
-### 3.14 表清单汇总
+### 3.14 验证码表 `sms_code`（本次新增）
+
+找回密码的两个接口均为免登录接口，验证码因此成为"唯一可验证的凭据"。本表保存每一次申请的 6 位数字验证码、
+有效期、使用状态与错误次数，并记录申请账号与手机号，用于双要素校验与发送限流。
+
+| 字段名 | 数据类型 | 长度 | 是否为空 | 默认值 | 键 | 说明 |
+| ------ | -------- | ---- | -------- | ------ | -- | ---- |
+| id | BIGINT | — | NOT NULL | AUTO_INCREMENT | PK | 验证码主键 |
+| phone | VARCHAR | 20 | NOT NULL | — | IDX `idx_sms_phone` | 接收手机号（取该账号在 `sys_user.phone` 中的绑定值） |
+| username | VARCHAR | 50 | NOT NULL | — | IDX `idx_sms_username` | 申请找回的账号名 |
+| code | VARCHAR | 10 | NOT NULL | — | | 6 位数字验证码（`SecureRandom` 生成） |
+| scene | VARCHAR | 30 | NOT NULL | 'PASSWORD_RESET' | IDX `idx_sms_phone` | 场景，当前仅 `PASSWORD_RESET`（找回密码） |
+| expire_time | DATETIME | — | NOT NULL | — | | 过期时间，申请时间 + `sms.expire-minutes`（默认 5 分钟） |
+| used | TINYINT | — | NOT NULL | 0 | | 是否已使用：0 未用 / 1 已用（校验通过、过期或错误次数超限被作废时置 1；发送失败由事务回滚，不留记录） |
+| attempts | INT | — | NOT NULL | 0 | | 校验失败次数，达到 `sms.max-attempts`（默认 5）即视为作废 |
+| client_ip | VARCHAR | 64 | NULL | NULL | | 请求方 IP，用于限流与审计 |
+| create_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP | IDX `idx_sms_phone` | 创建时间，同时用于 60 秒间隔与每日 10 次的限流判定 |
+
+本表共建立 2 个普通索引：
+
+| 索引名 | 索引列 | 设计理由 |
+| ------ | ------ | -------- |
+| `idx_sms_phone` | `(phone, scene, create_time)` | 覆盖发送限流的两条查询：取该手机号最近一条记录判断是否满 60 秒，以及统计当天记录数判断是否达每日上限；`phone` 等值 + `scene` 等值 + `create_time` 范围，符合最左前缀 |
+| `idx_sms_username` | `(username)` | 重置密码时按账号名定位最近一条未使用验证码，也便于按账号排查"谁申请过找回" |
+
+初始化数据：**0 行**。`02_data.sql` 已显式执行 `DELETE FROM sms_code;`，测试或演示后也应清空本表以还原基线。
+
+**设计说明：**
+
+1. **为什么验证码不存哈希。** 6 位纯数字只有 100 万种取值，哈希无法抵御"在线逐个试"的暴力枚举——攻击者并不需要拖库，直接调接口猜即可，真正起作用的是 5 分钟有效期与 5 次错误上限。其次，本表只保存短时效的验证码，不含密码、令牌等可直接利用的凭证，且使用验证码必须同时提供 `username` 与 `phone`（双要素），单张表泄露不足以重置密码。再次，明文便于管理员在演示与排障时核对"验证码到底发出去没有、内容是什么"。若后续面向生产环境，可在保留现有字段的同时改为存哈希并仅在发送时持有明文。
+2. **为什么落库而不是放 Redis。** 本项目未引入 Redis（见 README「说明与已知边界」），验证码放数据库可以少一个中间件依赖，部署与答辩环境更简单；同时 `sms_code` 天然支撑三类需要历史数据的判断——60 秒发送间隔、每日发送次数、错误次数累计，这些都要读"过去发生过什么"，而不仅是"当前值是否存在"。落库还使验证码在服务重启后不丢失，并能与用户密码更新处于同一数据库事务中。代价是每次申请多一次 `INSERT`、每次校验多一次 `SELECT`，在本系统万级数据量下可忽略。
+3. **`attempts` 的作用。** 6 位码的取值空间只有 100 万，若不限次数，脚本可以在有效期内把码试出来。`attempts` 在每次校验失败时加 1，达到 5 次即视为作废（再次提交即使码正确也提示错误次数过多），把单个验证码的可尝试次数压到 5 次，使爆破成功率降至可忽略量级；未达上限时接口还会提示"还可尝试 N 次"，兼顾安全与可用性。
+4. **`used` 的作用。** 校验通过后立即置 `used = 1`，同一验证码不能二次兑换；过期或错误次数达到上限时也置 1，避免留下"已不可用却仍可尝试"的记录。查询未使用验证码时以 `used = 0` 为条件并按 `id` 倒序取最近一条，保证只认最新一次申请。发送失败时业务层抛出异常，`@Transactional` 使该次插入整体回滚，因此不会留下记录。
+5. **`scene` 的预留意义。** 当前只有 `PASSWORD_RESET` 一种场景，但把场景作为索引列与查询条件，可在不改变表结构的前提下扩展"修改手机号验证""登录二次验证"等用途，也避免不同场景的验证码互相串用。
+
+### 3.15 表清单汇总
 
 | 序号 | 表名 | 中文名 | 类别 | 主键 | 唯一索引 | 普通索引数 |
 | ---- | ---- | ------ | ---- | ---- | -------- | ---------- |
-| 1 | sys_user | 用户表 | 权限 | id | uk_user_username | 3 |
-| 2 | sys_role | 角色表 | 权限 | id | uk_role_code | 0 |
-| 3 | sys_user_role | 用户角色关联表 | 权限 | id | uk_user_role | 1 |
-| 4 | sys_permission | 权限表 | 权限 | id | uk_perm_code | 1 |
-| 5 | sys_role_permission | 角色权限关联表 | 权限 | id | uk_role_perm | 1 |
+| 1 | sys_user | 用户表 | 认证 | id | uk_user_username | 3 |
+| 2 | sys_role | 角色表 | 认证 | id | uk_role_code | 0 |
+| 3 | sys_user_role | 用户角色关联表 | 认证 | id | uk_user_role | 1 |
+| 4 | sys_permission | 权限表 | 认证 | id | uk_perm_code | 1 |
+| 5 | sys_role_permission | 角色权限关联表 | 认证 | id | uk_role_perm | 1 |
 | 6 | station | 驿站表 | 业务 | id | uk_station_code | 0 |
 | 7 | shelf | 货架库位表 | 业务 | id | uk_shelf_code | 1 |
 | 8 | parcel | 快件表 | 业务 | id | uk_parcel_waybill | 4 |
@@ -554,8 +610,10 @@ v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为
 | 11 | ship_order | 寄件登记表 | 业务 | id | uk_ship_order_no | 3 |
 | 12 | exception_record | 异常件记录表 | 业务 | id | — | 3 |
 | 13 | notify_record | 取件通知记录表 | 业务 | id | — | 5 |
+| 14 | sms_code | 验证码表 | 认证 | id | — | 2 |
 
-业务核心表由 7 张增加到 **8** 张，字段总数由 132 个增加到 **146** 个，索引总数由 43 个增加到 **50** 个（含 13 个主键索引、9 个唯一索引、28 个普通索引）。
+业务核心表保持 **8** 张，新增的 `sms_code` 属于认证支撑表，表总数由 13 张增加到 **14 张**；
+字段总数由 146 个增加到 **156** 个，索引总数由 50 个增加到 **53** 个（含 14 个主键索引、9 个唯一索引、30 个普通索引）。
 
 ---
 
@@ -615,6 +673,9 @@ v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为
 | notify_record | idx_notify_phone | 普通 | receiver_phone | 支持按接收手机号模糊检索，服务通知记录页面的筛选与按客户排查 |
 | notify_record | idx_notify_type | 普通 | notify_type | 支持按通知类型筛选与统计（到件量、催取量、取件确认量对比） |
 | notify_record | idx_notify_time | 普通 | send_time | 支持发送时间区间筛选、列表默认时间倒序，以及「今日发送量」「当日是否已催取」的日期条件 |
+| sms_code | PRIMARY | 主键 | id | 主键索引；重置密码时按 `id` 倒序取最近一条未使用验证码 |
+| sms_code | idx_sms_phone | 普通 | phone, scene, create_time | 支撑发送限流：`phone` + `scene` 等值定位后，用 `create_time` 判断 60 秒间隔与统计当日次数，符合最左前缀 |
+| sms_code | idx_sms_username | 普通 | username | 支撑按账号名定位最近一条未使用验证码，也便于审计「某账号申请过几次找回」 |
 
 ### 4.2 重点索引分析
 

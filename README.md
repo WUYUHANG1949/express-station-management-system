@@ -23,7 +23,7 @@ RBAC 只有 **ADMIN / STAFF 两个角色**（角色授权合计 72 项 = 43 + 29
 
 | 模块 | 功能 |
 | ---- | ---- |
-| 认证管理 | 账号由管理员创建（**不开放自助注册**）、登录、退出、JWT 令牌签发与校验、获取当前用户与动态菜单 |
+| 认证管理 | 账号由管理员创建（**不开放自助注册**）、登录、**找回密码（免登录，账号名 + 绑定手机号双要素校验 + 6 位验证码）**、退出、JWT 令牌签发与校验、获取当前用户与动态菜单 |
 | 权限管理 | 角色维护、权限树分配、接口级鉴权（`@RequiresPermission`）、菜单与按钮级前端控制 |
 | 收件登记 | 运单号按快递公司正则校验、自动生成 8 位取件码、自动分配/指定货位、轨迹留痕、**入库后自动发送到件通知** |
 | 取件核销 | 取件码 + 运单号双重匹配、逾期保管费自动试算、写取件凭证、**同事务释放货位**、**核销后自动发送取件确认** |
@@ -52,7 +52,7 @@ RBAC 只有 **ADMIN / STAFF 两个角色**（角色授权合计 72 项 = 43 + 29
 | JDK | 17 | 运行环境 |
 | Spring Boot | 3.2.5 | 应用框架、自动装配、事务管理 |
 | MyBatis-Plus | 3.5.7 | 持久层框架，分页插件、逻辑删除、防全表更新 |
-| MySQL | 8.0 | 关系型数据库（13 张表） |
+| MySQL | 8.0 | 关系型数据库（14 张表） |
 | JJWT | 0.12.5 | JWT 令牌签发与解析（HS256） |
 | Spring Security Crypto | 6.x | BCrypt 密码加密（仅引入加密模块，不启用安全过滤器链） |
 | Apache POI | 5.2.5 | Excel 台账导出 |
@@ -90,7 +90,7 @@ express-station-management-system/
 │       │   │   └── util/                    # 运单号校验、取件码生成
 │       │   ├── config/                      # MyBatis-Plus、WebMvc、Jackson、通用 Bean
 │       │   ├── security/                    # JWT、登录拦截器、权限注解与切面
-│       │   ├── entity/                      # 13 张表对应实体
+│       │   ├── entity/                      # 14 张表对应实体
 │       │   ├── mapper/                      # Mapper 接口
 │       │   ├── dto/                         # 请求参数（含 query 子包）
 │       │   ├── vo/                          # 响应视图对象
@@ -114,7 +114,7 @@ express-station-management-system/
 │       ├── styles/theme.css                 # 全站主题：设计 token + Element Plus 覆盖 + 动效
 │       └── views/                           # 各业务页面（19 个路由页面）
 ├── sql/
-│   ├── 01_schema.sql                        # 建库建表脚本（13 张表）
+│   ├── 01_schema.sql                        # 建库建表脚本（14 张表）
 │   └── 02_data.sql                          # 初始化数据（角色/权限/用户/驿站/货位/快件/通知）
 ├── docs/
 │   ├── spec.md                              # 软件需求规格说明书
@@ -148,7 +148,7 @@ mysql -u root -p < sql/01_schema.sql
 mysql -u root -p < sql/02_data.sql
 ```
 
-执行完成后会创建数据库 `express_station`，包含 13 张表与完整示范数据
+执行完成后会创建数据库 `express_station`，包含 14 张表与完整示范数据
 （3 个用户、2 个角色、43 项权限、2 个驿站、14 个货位、25 件快件、8 张寄件单、3 条异常记录、30 条通知记录）。
 
 Windows 下也可直接双击 `scripts/init-db.bat`（需先按脚本内提示设置密码）。
@@ -276,15 +276,16 @@ Windows 下也可双击 `scripts/start-frontend.bat`。
 > 返回对应快件，其中手机号入参只能看到该号码名下的在站快件。服务层另保留一条"既非 ADMIN 也非 STAFF → 按本人手机号收敛"
 > 的防御性分支（当前无此类账号），用于避免将来新增自定义角色时默认放开全部数据。
 
-### 5.5 数据库设计概要（13 张表）
+### 5.5 数据库设计概要（14 张表）
 
 | 分类 | 表名 | 说明 |
 | ---- | ---- | ---- |
-| 系统权限 | `sys_user` | 用户（两类登录角色共用一张表） |
+| 认证与权限 | `sys_user` | 用户（两类登录角色共用一张表） |
 | | `sys_role` | 角色 |
 | | `sys_user_role` | 用户-角色关联 |
 | | `sys_permission` | 权限（菜单 + 按钮两级粒度） |
 | | `sys_role_permission` | 角色-权限关联 |
+| | `sms_code` | **验证码**（找回密码：6 位码、5 分钟有效、一次性、错误次数与限流） |
 | 业务核心 | `station` | 驿站（网点） |
 | | `shelf` | 货架库位（含占用数量） |
 | | `parcel` | 快件主表（核心业务表） |
@@ -329,6 +330,45 @@ Windows 下也可双击 `scripts/start-frontend.bat`。
 避免被用于探测某个号码是否存在。
 
 该接口已在 `WebMvcConfig` 中排除登录拦截，其余 `/api/**` 接口仍然强制校验 JWT。
+
+### 5.8 找回密码与验证码发送通道（本次新增）
+
+登录页密码框下方的「忘记密码？」提供**免登录**的验证码找回：第一步「验证身份」（账号名 + 该账号绑定的手机号），
+第二步「重置密码」（验证码 + 新密码 + 确认新密码）。对应后端两个接口：
+
+| 方法 | 路径 | 说明 |
+| ---- | ---- | ---- |
+| POST | `/api/auth/forgot-password/code` | 校验账号名与手机号后发送 6 位验证码，返回打码手机号、有效期、通道与 `demoCode`（仅 mock） |
+| POST | `/api/auth/forgot-password/reset` | 校验验证码并重置密码，成功后旧密码立即失效 |
+
+两个路径都在 `WebMvcConfig` 的免登录白名单内，**不挂权限点**（权限总数仍 43 项）。安全设计包括：
+双要素校验（账号不存在与手机号不匹配返回完全相同的提示，防用户名探测）、6 位数字验证码 5 分钟有效、
+一次性使用（校验通过立即置 `used = 1`）、错误 5 次作废、同一手机号 60 秒内只能申请一次且每天最多 10 次、
+已禁用账号不允许找回、发送失败返回可读提示而不抛 500。
+
+发送通道由 `application.yml` 的 `sms.provider` 决定，业务代码只依赖 `SmsSender` 接口，
+换通道不需要改代码：
+
+| `sms.provider` | 行为 | 成本 / 前提 |
+| -------------- | ---- | ----------- |
+| `mock`（默认） | 只写日志，并把验证码回传到接口的 `demoCode`，前端自动填入 | 零成本、无需审核，适合本地开发与答辩演示 |
+| `mail` | 通过 SMTP 真实投递到 `sms.mail.to` 配置的邮箱 | 成本为零、无需审核，只需一个支持 SMTP 的邮箱 |
+| `aliyun` | 按阿里云 RPC 签名规则（HMAC-SHA1）直接构造 HTTP 请求，不引入 SDK | 需先申请通过短信签名与模板，并配置 AK/SK（建议走环境变量） |
+
+**如何配置邮箱真实收验证码**（把 `provider` 从 `mock` 切到 `mail`）：
+
+1. **开通 SMTP 并拿到授权码**：以 QQ 邮箱为例，进入「设置 → 账户 → 开启 SMTP 服务」，按提示生成**授权码**
+   （注意不是邮箱登录密码）；163 邮箱同理，服务器为 `smtp.163.com`、端口 `465`（SSL）。
+2. **填写本地配置**：在 `backend/src/main/resources/application-dev.yml` 中填好 `spring.mail.username`
+   （完整邮箱地址）、`spring.mail.password`（上一步的授权码）与 `sms.mail.to`（接收验证码的邮箱）。
+   该文件已在 `.gitignore` 中，**不会提交到仓库**；也可改用环境变量 `MAIL_USERNAME`、`MAIL_PASSWORD`、`SMS_MAIL_TO`。
+3. **切换通道**：设置环境变量 `SMS_PROVIDER=mail`（或把 `application.yml` 的 `sms.provider` 改为 `mail`）。
+4. **重启后端**，在登录页点「忘记密码？」提交账号名与手机号，收件邮箱里即可看到验证码；
+   此时接口返回的 `demoCode` 为 `null`，验证码需要从邮箱读取后手填。
+
+> ⚠ **授权码等同密码**：只填在 `application-dev.yml` 或环境变量里，不要写进 `application.yml`、README 或提交到仓库。
+> `sms.expose-code-in-response` 仅对 `mock` 生效，生产环境必须设为 `false`。
+> `aliyun` 通道的签名与模板需在阿里云控制台申请通过，AK/SK 建议用 `SMS_ALIYUN_AK_ID`、`SMS_ALIYUN_AK_SECRET` 注入。
 
 ---
 
@@ -383,8 +423,10 @@ Windows 下也可双击 `scripts/start-frontend.bat`。
    已逻辑删除的运单号仍占用该唯一约束，若需重新入库同一运单号，应先恢复原记录或改用组合唯一索引。
 5. **前端主包体积**：Element Plus 采用完整引入（未使用按需自动导入插件），
    构建产物主包约 1.28 MB；生产环境可通过 `unplugin-vue-components` 按需引入进一步优化。
-6. **短信为模拟发送**：通知模块以写入 `notify_record` 的方式模拟发送，未接入真实短信网关
-   （对接位置见 `NotifyService.dispatch`）。这样既能完整演示通知与催取流程，又不会产生短信费用。
+6. **通知为模拟发送，找回密码验证码可真实投递**：通知模块以写入 `notify_record` 的方式模拟发送，未接入真实短信网关
+   （对接位置见 `NotifyService.dispatch`）。找回密码的验证码另有一套可切换通道：默认 `mock` 只写日志并回传 `demoCode`，
+   切到 `mail` 可真实投递到邮箱，切到 `aliyun` 可按阿里云签名规则发短信（需先申请签名与模板）。
+   演示默认零成本，生产环境应关闭 `expose-code-in-response`。
 7. **数据大屏为定时轮询**：大屏每 30 秒轮询一次聚合接口，未使用 WebSocket 推送。
    在答辩场景下轮询已足够，实时性要求更高的场景可改为 SSE 或 WebSocket。
 8. **公开查询接口只凭入参即可信**：`/api/public/pickup-query` 不要求登录，凭手机号、取件码或运单号即可查询，
@@ -420,8 +462,8 @@ v1.1 起全站统一为「深蓝渐变 + 青绿点缀」主题，**改配色只�
 | 文档 | 说明 |
 | ---- | ---- |
 | [docs/spec.md](docs/spec.md) | 软件需求规格说明书（角色分析、业务流程、功能需求、用例描述） |
-| [docs/user-stories.md](docs/user-stories.md) | **用户故事与验收标准**：30 条用户故事、117 条验收标准、敏捷四层拆分、需求↔故事↔用例追溯矩阵 |
-| [docs/database-design.md](docs/database-design.md) | 数据库设计说明书（ER 图、13 张表字段、索引设计与设计取舍） |
+| [docs/user-stories.md](docs/user-stories.md) | **用户故事与验收标准**：30 条用户故事、120 条验收标准、敏捷四层拆分、需求↔故事↔用例追溯矩阵 |
+| [docs/database-design.md](docs/database-design.md) | 数据库设计说明书（ER 图、14 张表字段、索引设计与设计取舍） |
 | [docs/api-contract.md](docs/api-contract.md) | 前后端接口契约（统一约定、全部接口、枚举与错误码） |
 | [docs/test-cases.md](docs/test-cases.md) | 测试用例说明书（功能用例、接口用例、覆盖矩阵） |
 | [docs/thesis-outline.md](docs/thesis-outline.md) | 毕业论文大纲、写作素材、参考文献与答辩准备 |

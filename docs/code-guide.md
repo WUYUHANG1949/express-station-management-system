@@ -40,7 +40,7 @@ D:\wuyuhang-delivery-system
 
 ```
 D:\wuyuhang-delivery-system\
-├── backend/          Spring Boot 后端（109 个 Java 文件）
+├── backend/          Spring Boot 后端（122 个 Java 文件）
 ├── frontend/         Vue 3 前端（19 个路由页面）
 ├── sql/              01_schema.sql 建表 + 02_data.sql 示范数据
 ├── docs/             5 份文档 + 13 张运行截图
@@ -57,11 +57,12 @@ D:\wuyuhang-delivery-system\
 | `common` | 16 | 统一响应体、全局异常处理、状态枚举、工具类 | 统一返回格式，前端只需判断 `code==200` |
 | `config` | 4 | MyBatis-Plus、WebMvc（拦截器/跨域）、Jackson、通用 Bean | 集中配置，业务代码零配置污染 |
 | `security` | 6 | JWT 工具、登录拦截器、权限注解与切面、用户上下文 | **认证与鉴权分层**（详见下文第五点） |
-| `entity` | 13 | 13 张表的实体类 | 与数据库表一一对应 |
-| `mapper` | 14 | Mapper 接口（复杂 SQL 在 `resources/mapper/*.xml`） | 简单查询用注解，复杂关联查询用 XML |
-| `dto` | 21 | 请求参数对象（含 `query` 子包） | 用 `@Valid` 做参数校验 |
-| `vo` | 11 | 响应视图对象 | 只返回前端需要的字段 |
-| `service` | 12 | 业务逻辑（**核心在这里**） | 事务、业务规则、数据权限都在这一层 |
+| `entity` | 14 | 14 张表的实体类（含 `SmsCode`） | 与数据库表一一对应 |
+| `mapper` | 15 | Mapper 接口（复杂 SQL 在 `resources/mapper/*.xml`） | 简单查询用注解，复杂关联查询用 XML |
+| `dto` | 22 | 请求参数对象（含 `query` 子包） | 用 `@Valid` 做参数校验 |
+| `vo` | 13 | 响应视图对象 | 只返回前端需要的字段 |
+| `service` | 13 | 业务逻辑（**核心在这里**，含 `SmsCodeService`） | 事务、业务规则、数据权限都在这一层 |
+| `sms` | 7 | 验证码发送通道：`SmsSender` 接口、mock / mail / aliyun 三个实现与 `SmsSenderRouter` | 换通道只改配置，业务代码只依赖接口 |
 | `controller` | 11 | REST 接口 | 只做参数接收与结果包装，不写业务 |
 
 ### 按重要性排序的核心文件
@@ -89,13 +90,14 @@ D:\wuyuhang-delivery-system\
 
 1. `backend/src/main/java/com/wuyuhang/delivery/DeliveryApplication.java`（27 行）
    —— 启动类，注解 `@SpringBootApplication` + `@MapperScan`
-2. `backend/src/main/resources/application.yml`（86 行）
-   —— 端口、数据库、MyBatis-Plus、JWT 配置；注意数据库密码走 `application-dev.yml`，**不进版本库**
+2. `backend/src/main/resources/application.yml`（131 行）
+   —— 端口、数据库、MyBatis-Plus、JWT 配置；注意数据库密码走 `application-dev.yml`，**不进版本库**；
+   `sms.provider` 决定找回密码的验证码通道（默认 `mock`）
 
 ### 第 3 步：看数据库（10 分钟）
 
-1. `sql/01_schema.sql` —— 13 张表的建表语句，**每张表都有中文注释**
-   - 5 张系统权限表：`sys_user`、`sys_role`、`sys_user_role`、`sys_permission`、`sys_role_permission`
+1. `sql/01_schema.sql` —— 14 张表的建表语句，**每张表都有中文注释**
+   - 6 张认证与权限表：`sys_user`、`sys_role`、`sys_user_role`、`sys_permission`、`sys_role_permission`、`sms_code`
    - 8 张业务表：`station`、`shelf`、`parcel`、`parcel_trace`、`pickup_record`、`ship_order`、`exception_record`、`notify_record`
 2. `docs/database-design.md` —— ER 图 + 每个字段的设计理由
 

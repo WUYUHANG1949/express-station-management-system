@@ -12,6 +12,10 @@
 > 与接口测试用例 TC-API-047 至 TC-API-061；需求覆盖矩阵纳入 FR-26 至 FR-30；
 > 基线数据核对补充 `notify_record` 的条数与构成、权限总数 43 项与角色权限分布；
 > 并按 v1.1 代码行为修正取件核销状态口径、错误提示语与「派送中快件可当面签收核销」等既有用例。
+>
+> **本次修订（找回密码）**：新增功能测试用例 TC-101 至 TC-106 与接口测试用例 TC-API-072、TC-API-073，
+> 覆盖验证码找回的正常流程、双要素防探测、一次性、错误次数上限、发送限流与通道切换；
+> 基线数据核对表补充 `sms_code`（初始化后 0 行），全文用例总数更新为功能 **106** 条、接口 **73** 条、合计 **179** 条。
 
 ---
 
@@ -24,6 +28,7 @@
 3. 验证关键业务路径的数据一致性，重点检查收件登记、取件核销、异常件处理过程中的多表写入与货位计数是否准确。
 4. 验证系统对异常输入与非法操作的容错能力，确认返回的业务码与中文提示语符合接口契约约定。
 5. 为毕业设计论文第 6 章"系统测试"提供可复现的测试记录与结论依据。
+6. 本轮共设计功能测试用例 **106** 条、接口测试用例 **73** 条，合计 **179** 条；其中认证模块含 TC-001 至 TC-011 与本次新增的 TC-101 至 TC-106，接口用例含 TC-API-072、TC-API-073。
 
 ### 1.2 测试环境
 
@@ -65,6 +70,9 @@
 | `sys_user` | 3 | `admin`、`staff01`、`staff02`，密码均为 `$2a$10$` 开头的 BCrypt 密文 |
 | `sys_user_role` | 3 | (1,1) admin→ADMIN、(2,2) staff01→STAFF、(3,2) staff02→STAFF；原 user01/user02 的关联已删除 |
 | `sys_role_permission` | 72 | ADMIN 43 项（全部权限）+ STAFF 29 项；原 USER 的 3 项授权（`dashboard`、`parcel:list`、`profile`）已删除，总数由 75 降为 72 |
+| `sms_code` | 0 | 验证码表，初始化后无记录；`02_data.sql` 已加入 `DELETE FROM sms_code;`。执行找回密码用例后会产生记录，还原基线时需清空 |
+
+初始化后数据库共 **14 张表**（6 张认证与权限表 + 8 张业务表）。上表列出与用例直接相关的数据对象，其中 `sms_code` 为本次新增、初始 **0 行**；其余表结构与字段说明见 `docs/database-design.md`。
 
 ### 1.4 测试方法
 
@@ -86,7 +94,7 @@
 
 ### 1.7 用例编号规则与优先级说明
 
-1. 功能测试用例编号格式为 `TC-` 加三位序号，按模块分段连续编号，段内顺序体现业务先后关系：认证模块 TC-001 至 TC-011，权限模块 TC-012 至 TC-018，收件登记模块 TC-019 至 TC-025，取件核销与派送模块 TC-026 至 TC-037，寄件登记模块 TC-038 至 TC-043，异常件管理模块 TC-044 至 TC-050，查询与统计模块 TC-051 至 TC-063，系统管理与基础数据模块 TC-064 至 TC-073，通知与逾期催取模块 TC-074 至 TC-087，货位可视化与数据大屏模块 TC-088 至 TC-092，收件人自助查询模块 TC-093 至 TC-098，取件方式与核验方式校验 TC-099 至 TC-100（后四段为 v1.1 新增）。
+1. 功能测试用例编号格式为 `TC-` 加三位序号，按模块分段连续编号，段内顺序体现业务先后关系：认证模块 TC-001 至 TC-011，权限模块 TC-012 至 TC-018，收件登记模块 TC-019 至 TC-025，取件核销与派送模块 TC-026 至 TC-037，寄件登记模块 TC-038 至 TC-043，异常件管理模块 TC-044 至 TC-050，查询与统计模块 TC-051 至 TC-063，系统管理与基础数据模块 TC-064 至 TC-073，通知与逾期催取模块 TC-074 至 TC-087，货位可视化与数据大屏模块 TC-088 至 TC-092，收件人自助查询模块 TC-093 至 TC-098，取件方式与核验方式校验 TC-099 至 TC-100（后四段为 v1.1 新增），找回密码 TC-101 至 TC-106（本次新增，共 6 条）。
 2. 接口测试用例编号格式为 `TC-API-` 加三位序号，按接口所属模块分组连续编号，与功能用例分开统计，避免重复计数。
 3. 优先级分为三级。高：核心业务路径与安全相关用例，必须全部通过，任一条失败即判定本轮测试不通过；中：影响使用效率或数据完整性的用例，允许在修复后回归；低：边界与异常提示类用例，可在验收前完成。
 4. 每条用例的"预期结果"均包含三项可验证内容中的一项或多项：预期业务码与提示语原文、预期界面表现、预期数据库变化（表名与字段取值），以保证测试结论可复现。
@@ -256,6 +264,17 @@
 | TC-099 | 取件核销 | 非法取件方式被拒绝 | 已用 staff01 登录；`parcel.id = 2` 为 `IN_STORE`，取件码 `10015678` | 1. 请求 `POST /api/parcels/pickup`，body 中 `pickupType = "DOOR"`（早期文档误用的枚举值），其余字段合法 | HTTP 200，`code = 1001`，`message = 非法的取件方式：DOOR`；`parcel.id = 2` 状态仍为 `IN_STORE`；`pickup_record`、`parcel_trace`、`notify_record` 均无新增记录；正确取值 `DELIVERY` 时可正常核销（见 TC-030） | 通过 | 高 |
 | TC-100 | 取件核销 | 非法核验方式被拒绝 | 已用 staff01 登录；`parcel.id = 2` 仍为 `IN_STORE` | 1. 请求 `POST /api/parcels/pickup`，body 中 `verifyType = "FACE"`，其余字段合法 | HTTP 200，`code = 1001`，`message = 非法的核验方式：FACE`；数据库无任何变更；取值 `CODE`、`ID_CARD`、`PHONE` 之一时校验通过 | 通过 | 中 |
 
+### 2.13 找回密码模块（本次新增）
+
+| 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
+| -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
+| TC-101 | 找回密码 | 正常找回密码并用新密码登录 | 已执行初始化脚本；`staff01` 的手机号为 `13800000002`，原密码 `123456`；后端 `sms.provider = mock`；`sms_code` 表 0 行 | 1. 退出登录，在登录页点「忘记密码？」；2. 第一步输入账号 `staff01`、手机号 `13800000002`，点「获取验证码」；3. 读取弹窗提示与自动填入的验证码；4. 第二步输入新密码 `abc123456` 与确认密码，点「重置密码」；5. 用 `staff01 / 123456` 登录一次，再用 `staff01 / abc123456` 登录一次；6. 查询 `sms_code` 表并恢复原密码 | 第 2 步 `code = 200`，`message = 验证码已发送`，`data.provider = mock`、`data.maskedPhone = 138****0002`、`data.expireMinutes = 5`、`data.demoCode` 为 6 位数字；前端显示黄色提示「演示模式（未接入短信网关）：验证码 XXXXXX 已自动填入」并自动填入验证码；`sms_code` 新增 1 行（`username = staff01`、`phone = 13800000002`、`scene = PASSWORD_RESET`、`used = 0`、`attempts = 0`、`expire_time = 当前时间 + 5 分钟`）；第 4 步 `code = 200`、`message = 密码已重置，请用新密码登录`、`data = null`，弹窗关闭、账号名自动带回登录表单、密码清空；该验证码行 `used` 变为 1；第 5 步旧密码登录返回 `code = 1001`、`message = 用户名或密码错误`，新密码登录成功；`sys_user.password` 为新的 BCrypt 密文；测试完成后用管理员重置密码或用新密码登录后改回 `123456` | 通过 | 高 |
+| TC-102 | 找回密码 | 双要素校验：手机号不匹配与账号不存在提示完全一致 | `staff01` 存在且手机号为 `13800000002`；数据库不存在账号 `zhangsan999`；`sms_code` 表 0 行 | 1. 请求 `POST /api/auth/forgot-password/code`，body `{"username":"staff01","phone":"13900000009"}`；2. 请求同一接口，body `{"username":"zhangsan999","phone":"13800000002"}`；3. 对比两次 `message`；4. 换一个未绑定该手机号的账号再试一次（如 `admin` + `13800000002`） | 三次均 HTTP 200、`code = 1001`、`data = null`，`message` **完全相同**，均为「账号与手机号不匹配，请核对后重试」；`sms_code` 记录数不变（0 行），未触发任何短信或邮件投递；接口不会因账号不存在而返回不同文案，因此无法被用来枚举用户名 | 通过 | 高 |
+| TC-103 | 找回密码 | 验证码一次性：同一验证码二次兑换被拒 | 已按 TC-101 第 2 步取得 `staff01` 的验证码并成功重置过一次密码；该验证码行的 `used = 1` | 1. 用同一个 `username`、`phone`、`code` 再次请求 `POST /api/auth/forgot-password/reset`，`newPassword` 换一个值；2. 查询 `sms_code` 与该账号密码 | HTTP 200、`code = 1001`、`message = 验证码已失效，请重新获取`；第二次不修改密码，`sys_user.password` 与第一次重置后的值一致；`sms_code` 中该行仍为 `used = 1`，未新增记录；说明验证码在校验通过时立即作废，不可重复兑换 | 通过 | 高 |
+| TC-104 | 找回密码 | 错误次数上限：连续输错 5 次后验证码作废 | 已为 `staff01` 申请验证码并记下正确验证码；`sms_code` 中该行 `attempts = 0`（若 60 秒内刚申请过，需等待间隔或先执行 `DELETE FROM sms_code;` 再申请） | 1. 连续 5 次请求 `POST /api/auth/forgot-password/reset`，每次提交错误验证码（如 `000000`，若与真码相同则换 `111111`），`username`、`phone` 正确；2. 记录每次 `message`；3. 第 6 次提交**正确**验证码；4. 查询 `sms_code` | 第 1 至 4 次均 `code = 1001`，`message` 依次为「验证码不正确，还可尝试 4 次」「……3 次」「……2 次」「……1 次」；第 5 次 `message = 验证码错误次数过多，请重新获取`，该行 `attempts = 5`；第 6 次即使验证码正确也返回 `验证码错误次数过多，请重新获取`，且该行 `used` 被置为 1；必须重新申请验证码才能继续，证明 6 位码不能被无限次暴力尝试 | 通过 | 高 |
+| TC-105 | 找回密码 | 发送限流：60 秒间隔与每日上限 | `staff01` 已成功申请过 1 次验证码；`sms_code` 中该手机号当日已有 1 条记录 | 1. 60 秒内再次请求 `POST /api/auth/forgot-password/code`（同账号同手机号）；2. 等待超过 60 秒后再申请一次；3. 用 SQL 把该手机号当日记录的 `create_time` 逐条前移（或直接插入 9 条 `create_time` 为 61 秒前的当日记录），使当日累计达到 10 条，再次申请；4. 清理测试记录 | 第 1 次 HTTP 200、`code = 1001`、`message` 形如「请求过于频繁，请 58 秒后再试」（`N` 为剩余秒数），`sms_code` 不新增；第 2 次成功、`code = 200`；第 3 次 `code = 1001`、`message = 该手机号今日验证码发送次数已达上限，请明天再试`，不再生成新验证码；测试后删除本用例新增的 `sms_code` 记录，恢复 0 行基线 | 通过 | 高 |
+| TC-106 | 找回密码 | 通道切换：`mail` 未配置邮箱时返回可读提示而非 500 | 已停止后端；`application-dev.yml` 中 `sms.mail.to` 留空（或环境变量 `SMS_MAIL_TO` 为空）；先执行 `DELETE FROM sms_code;` 清空验证码表；设置环境变量 `SMS_PROVIDER=mail` 后重启后端 | 1. 请求 `POST /api/auth/forgot-password/code`，body 为 `{"username":"staff01","phone":"13800000002"}`；2. 查看响应状态码与响应体；3. 查询 `sms_code`；4. 恢复 `SMS_PROVIDER=mock` 并重启 | 第 1 步 HTTP **200**（不是 500），`code = 1001`、`data = null`，`message = 验证码发送失败，请稍后重试或联系管理员`；后端日志出现 `[MAIL-SMS] 未配置 sms.mail.to` 警告；`sms_code` 记录数仍为 **0**（`sendCode` 标注 `@Transactional(rollbackFor = Exception.class)`，发送失败抛出的业务异常使刚插入的验证码一并回滚，不会留下"永远收不到"的无效记录）；切回 `mock` 后重复申请可正常返回 `demoCode`，证明发送通道由配置切换、业务代码不感知具体通道 | 通过 | 高 |
+
 ---
 
 ## 3 接口测试用例
@@ -333,6 +352,8 @@
 | TC-API-069 | 取件核销（非法核验方式） | POST | `/api/parcels/pickup` | 同上但 `pickupType = "SELF"`、`verifyType = "FACE"` | 200 | 1001 | `message = 非法的核验方式：FACE`；状态与记录均不变 | 枚举校验 |
 | TC-API-070 | 入库自动通知 | POST | `/api/parcels/in-store` | `{"waybillNo":"SF1234567890997","stationId":1,"expressCompany":"顺丰速运","parcelType":"NORMAL","receiverName":"王小明","receiverPhone":"13900000001","overdueDays":3}` | 200 | 200 | 入库成功；随后查询该快件通知记录，新增 1 条 `IN_STORE`/`SMS`、`sendStatus=SUCCESS`、`operatorId=null` 的记录 | 通知在入库事务内写入 |
 | TC-API-071 | 核销自动通知 | POST | `/api/parcels/pickup` | 对 TC-API-070 登记的快件执行核销（`pickupType = "SELF"`、`verifyType = "CODE"`） | 200 | 200 | 核销成功；该快件通知记录新增 1 条 `PICKUP_DONE`/`APP` 的记录 | 通知失败不影响核销 |
+| TC-API-072 | 找回密码-申请验证码 | POST | `/api/auth/forgot-password/code` | 正常：`{"username":"staff01","phone":"13800000002"}`；异常：手机号换成 `13900000009`；账号换成 `zhangsan999`；60 秒内重复申请 | 200 | 200 / 1001 | 正常时 `message = 验证码已发送`，`data` 含 `message`、`maskedPhone = 138****0002`、`expireMinutes = 5`、`provider = mock`、`demoCode` 为 6 位数字（`mail`/`aliyun` 下 `demoCode = null`）；异常时 `data = null`，手机号不匹配与账号不存在均返回「账号与手机号不匹配，请核对后重试」，限流返回「请求过于频繁，请 N 秒后再试」；**不带 `Authorization` 头也能访问** | 免登录白名单；`sms_code` 正常时新增 1 行、异常时不新增；每日上限需先把该手机号当日记录构造到 10 条再申请 |
+| TC-API-073 | 找回密码-重置密码 | POST | `/api/auth/forgot-password/reset` | 正常：`{"username":"staff01","phone":"13800000002","code":"<上一步 demoCode>","newPassword":"abc123456"}`；异常：同一个 `code` 再提交一次；`code` 改成 `000000`；`code` 改成 `12345`；`newPassword` 改成 `123` | 200 | 200 / 1001 / 400 | 正常时 `message = 密码已重置，请用新密码登录`、`data = null`，`sms_code.used = 1`，`sys_user.password` 更新为 BCrypt 密文；重复兑换返回「验证码已失效，请重新获取」；错误码返回「验证码不正确，还可尝试 N 次」；6 位数字与密码长度不合法时 `code = 400`；**不带 `Authorization` 头也能访问** | 免登录白名单；测试后把 `staff01` 密码恢复为 `123456` |
 
 ---
 
@@ -340,7 +361,7 @@
 
 | 需求编号 | 需求名称 | 覆盖用例 |
 | -------- | -------- | -------- |
-| FR-01 | 用户登录 | TC-001、TC-002、TC-003、TC-004、TC-005、TC-API-001、TC-API-002 |
+| FR-01 | 用户登录 | TC-001 至 TC-005、TC-101 至 TC-106、TC-API-001、TC-API-002、TC-API-072、TC-API-073 |
 | FR-02 | 账号创建（自助注册已取消） | TC-006、TC-007、TC-008、TC-009、TC-API-003、TC-API-004 |
 | FR-03 | 登录状态维护 | TC-010、TC-011、TC-018、TC-API-005、TC-API-006、TC-API-007 |
 | FR-04 | 用户管理 | TC-064、TC-065、TC-066、TC-067、TC-API-035 至 TC-API-038 |
@@ -370,7 +391,7 @@
 | FR-28 | 货位可视化地图 | TC-088、TC-089、TC-090、TC-API-060、TC-API-061 |
 | FR-29 | 数据大屏 | TC-091、TC-092、TC-API-062、TC-API-063 |
 | FR-30 | 收件人自助查询（手机号 / 取件码 / 运单号三种入参） | TC-093、TC-094、TC-095、TC-096、TC-097、TC-098、TC-API-064 至 TC-API-067 |
-| NFR 安全性 | 密码加密与接口鉴权 | TC-004、TC-010、TC-011、TC-012、TC-013、TC-016、TC-017、TC-018、TC-050、TC-059、TC-096、TC-097、TC-API-057、TC-API-065、TC-API-066 |
+| NFR 安全性 | 密码加密与接口鉴权 | TC-004、TC-010、TC-011、TC-012、TC-013、TC-016、TC-017、TC-018、TC-050、TC-059、TC-096、TC-097、TC-102、TC-104、TC-105、TC-API-057、TC-API-065、TC-API-066、TC-API-072、TC-API-073 |
 | NFR 性能 | 查询与统计响应时间 | TC-052、TC-054、TC-060、TC-061、TC-088、TC-091、TC-098 |
 
 ---
@@ -409,8 +430,9 @@
 3. 若测试环境时间与服务器时间不一致，将影响"当日入库量""逾期天数"等时间敏感用例的结果，测试前需同步系统时间。
 4. 涉及修改数据库基线数据的用例（如 TC-004、TC-022、TC-025、TC-065、TC-066、TC-068、TC-090、TC-098）在执行完毕后必须恢复数据，建议在用例执行前后各执行一次基线数据备份与还原。
 5. v1.1 的通知功能未接入真实短信网关，`NotifyService.dispatch` 以写入 `notify_record` 的方式模拟发送。因此通知类用例（TC-074 至 TC-084、TC-API-047 至 TC-API-056）验证的是"通知是否按规则落库、结果与失败原因是否正确、当天是否去重"，而非短信是否真实送达；接入网关后需补充真实发送与运营商回执的验证项。
-6. 通知类用例与逾期类用例涉及"当天"这一时间维度（如 TC-080 的当天去重、TC-081 的待催取数量），跨零点执行会导致结果变化，建议在同一自然日内连续执行并记录执行时间。
-7. **数据范围已在服务层强制收敛（v1.1 修复项）**：v1.1 开发过程中曾发现部分接口的数据范围只在前端限制、后端未强制收敛，具体为：`GET /api/shelves/map` 与 `PUT /api/shelves/recalculate` 不校验驿站归属；`POST /api/notifications/batch-overdue`、`GET /api/notifications/overdue-pending` 与 `GET /api/notifications/page` 仅在入参为空时才取登录用户所属驿站；`GET /api/parcels/overdue/count` 曾对未绑定驿站的账号返回全部驿站的逾期件数。**上述问题均已修复**：货位地图与重算统一走 `ShelfService.resolveStationScope`；通知相关接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口与分页接口统一口径（`countOverdue` 对"既非 ADMIN 也非 STAFF"的账号按本人手机号统计，属防御性分支，当前无此类账号）。TC-086、TC-087 已按修复后的行为描述，验证方式为"员工伪造 `stationId` 请求他站数据，断言响应仍只含本驿站记录"。
+6. 找回密码的验证码发送通道默认 `mock`，TC-101 至 TC-105 在 `mock` 下执行（接口回传 `demoCode` 便于自动化断言）；TC-106 需临时把 `SMS_PROVIDER` 切到 `mail` 并留空 `sms.mail.to`。执行后须清空 `sms_code` 并把 `staff01` 的密码恢复为 `123456`，否则会影响后续用例的登录前置条件。
+7. 通知类用例与逾期类用例涉及"当天"这一时间维度（如 TC-080 的当天去重、TC-081 的待催取数量），跨零点执行会导致结果变化，建议在同一自然日内连续执行并记录执行时间。
+8. **数据范围已在服务层强制收敛（v1.1 修复项）**：v1.1 开发过程中曾发现部分接口的数据范围只在前端限制、后端未强制收敛，具体为：`GET /api/shelves/map` 与 `PUT /api/shelves/recalculate` 不校验驿站归属；`POST /api/notifications/batch-overdue`、`GET /api/notifications/overdue-pending` 与 `GET /api/notifications/page` 仅在入参为空时才取登录用户所属驿站；`GET /api/parcels/overdue/count` 曾对未绑定驿站的账号返回全部驿站的逾期件数。**上述问题均已修复**：货位地图与重算统一走 `ShelfService.resolveStationScope`；通知相关接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口与分页接口统一口径（`countOverdue` 对"既非 ADMIN 也非 STAFF"的账号按本人手机号统计，属防御性分支，当前无此类账号）。TC-086、TC-087 已按修复后的行为描述，验证方式为"员工伪造 `stationId` 请求他站数据，断言响应仍只含本驿站记录"。
 
 ### 5.4 测试数据清理与基线还原
 
@@ -418,12 +440,12 @@
 
 | 步骤 | 操作内容 | 校验方式 |
 | ---- | -------- | -------- |
-| 1 | 重新执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，重建 `express_station` 库 | 查询 13 张表，记录数与初始化脚本一致 |
-| 2 | 核验 `parcel` 表记录数为 25、`ship_order` 表记录数为 8、`exception_record` 表记录数为 3、`notify_record` 表记录数为 29 | 执行计数查询比对 |
+| 1 | 重新执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，重建 `express_station` 库 | 查询 14 张表，记录数与初始化脚本一致 |
+| 2 | 核验 `parcel` 表记录数为 25、`ship_order` 表记录数为 8、`exception_record` 表记录数为 3、`notify_record` 表记录数为 29、`sms_code` 表记录数为 0 | 执行计数查询比对 |
 | 3 | 核验 `notify_record` 的构成：`IN_STORE` 19 条、`OVERDUE` 4 条、`PICKUP_DONE` 5 条、`EXCEPTION` 1 条，其中 `send_status = 'FAILED'` 2 条 | 按 `notify_type`、`send_status` 分组计数比对 |
 | 4 | 核验 `shelf.used_count` 与占用货位的快件数量一致 | 按 `shelf_id` 分组统计 `deleted = 0` 且 `status IN ('IN_STORE','DELIVERING','EXCEPTION')` 的快件数并比对 |
 | 5 | 核验 `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission` 的初始数据未被用例污染 | 比对角色数 2（ADMIN、STAFF）、权限数 43（菜单类 21、按钮类 22）、用户数 3（admin / staff01 / staff02）、用户角色关联 3 条、角色权限关联 72 条（ADMIN 43 / STAFF 29） |
-| 6 | 清除测试过程中新增的测试快件、测试用户、测试货位与测试通知 | 全表检索测试标识（如 tester01）应无结果；`notify_record` 条数回到 29 条 |
+| 6 | 清除测试过程中新增的测试快件、测试用户、测试货位与测试通知，并清空验证码表 `sms_code` | 全表检索测试标识（如 tester01）应无结果；`notify_record` 条数回到 29 条；`sms_code` 条数为 0（执行 `DELETE FROM sms_code;`） |
 
 ---
 
@@ -431,7 +453,7 @@
 
 ### 6.1 结论内容
 
-1. 本轮共设计功能测试用例 100 条、接口测试用例 71 条，实际执行 ____ 条，通过 ____ 条，失败 ____ 条，阻塞 ____ 条，用例通过率为 ____%。
+1. 本轮共设计功能测试用例 106 条、接口测试用例 73 条（合计 179 条），实际执行 ____ 条，通过 ____ 条，失败 ____ 条，阻塞 ____ 条，用例通过率为 ____%。
 2. 缺陷统计：致命 ____ 个，严重 ____ 个，一般 ____ 个，提示 ____ 个；已修复 ____ 个，遗留 ____ 个。
 3. 核心业务功能（收件登记、取件核销、异常件处理）测试结果为 ____，事务一致性与货位计数经数据库比对 ____ 偏差。
 4. 权限控制测试结果为 ____，两类登录角色（`ADMIN`、`STAFF`）的菜单级与按钮级权限隔离 ____ 有效，未发现越权访问与越权查询；收件人不设账号，其查件由免登录接口按入参限定。
