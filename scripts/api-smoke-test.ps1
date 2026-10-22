@@ -334,6 +334,44 @@ Show "18.3 valid pickupType DELIVERY" @{ code = $okPickup.code; message = $okPic
 $autoNotify = Get-Api "$base/notifications/parcel/$($pV.data.id)" $adminToken
 Show "18.4 auto notifications after in-store + pickup" @{ count = $autoNotify.data.Count; types = ($autoNotify.data | ForEach-Object { $_.notifyTypeName }) -join ' -> ' }
 
-[System.IO.File]::WriteAllLines($out, $lines, (New-Object System.Text.UTF8Encoding($false)))
+Log ""
+  Log "==================== 19. FORGOT PASSWORD (NO AUTH) ===================="
+  
+  # 19.1 request a verification code for staff01 (no-login endpoint)
+  $fpSend = Post-Json "$base/auth/forgot-password/code" @{ username = 'staff01'; phone = '13800000002' } $null
+  Show "19.1 send code (mock channel exposes demoCode)" @{ code = $fpSend.code; provider = $fpSend.data.provider; masked = $fpSend.data.maskedPhone; hasDemoCode = [bool]$fpSend.data.demoCode; expireMinutes = $fpSend.data.expireMinutes }
+  $fpCode = $fpSend.data.demoCode
+  
+  # 19.2 second request within the interval must be throttled
+  $fpAgain = Post-Json "$base/auth/forgot-password/code" @{ username = 'staff01'; phone = '13800000002' } $null
+  Show "19.2 rate limit (same phone within 60s)" @{ code = $fpAgain.code; message = $fpAgain.message }
+  
+  # 19.3 account name and phone must BOTH match; unknown account must give the same message
+  $fpWrongPhone = Post-Json "$base/auth/forgot-password/code" @{ username = 'staff01'; phone = '13900000009' } $null
+  $fpNoUser = Post-Json "$base/auth/forgot-password/code" @{ username = 'nobody999'; phone = '13800000002' } $null
+  Show "19.3 mismatch rejected, same message for unknown account" @{ wrongPhoneCode = $fpWrongPhone.code; noUserCode = $fpNoUser.code; sameMessage = ($fpWrongPhone.message -eq $fpNoUser.message) }
+  
+  # 19.4 wrong code must be rejected
+  $fpBadReset = Post-Json "$base/auth/forgot-password/reset" @{ username = 'staff01'; phone = '13800000002'; code = '000000'; newPassword = 'abcd1234' } $null
+  Show "19.4 wrong code rejected" @{ code = $fpBadReset.code; message = $fpBadReset.message }
+  
+  # 19.5 correct code resets the password
+  $fpReset = Post-Json "$base/auth/forgot-password/reset" @{ username = 'staff01'; phone = '13800000002'; code = $fpCode; newPassword = 'abcd1234' } $null
+  Show "19.5 reset with correct code" @{ code = $fpReset.code; message = $fpReset.message }
+  
+  # 19.6 new password works, old password fails
+  $fpLoginNew = Post-Json "$base/auth/login" @{ username = 'staff01'; password = 'abcd1234' } $null
+  $fpLoginOld = Post-Json "$base/auth/login" @{ username = 'staff01'; password = '123456' } $null
+  Show "19.6 new password ok, old password rejected" @{ newCode = $fpLoginNew.code; oldCode = $fpLoginOld.code }
+  
+  # 19.7 the same verification code cannot be reused
+  $fpReuse = Post-Json "$base/auth/forgot-password/reset" @{ username = 'staff01'; phone = '13800000002'; code = $fpCode; newPassword = 'zzzz1234' } $null
+  Show "19.7 verification code is single-use" @{ code = $fpReuse.code; message = $fpReuse.message }
+  
+  # 19.8 restore staff01 password so the baseline stays reproducible
+  $fpAdmin = Post-Json "$base/auth/login" @{ username = 'admin'; password = '123456' } $null
+  $restore = Invoke-RestMethod -Uri "$base/users/2/password?password=123456" -Method Put -Headers @{ Authorization = "Bearer $($fpAdmin.data.token)" } -TimeoutSec 30
+  Show "19.8 restore staff01 password" @{ code = $restore.code; message = $restore.message }
+    [System.IO.File]::WriteAllLines($out, $lines, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host ""
 Write-Host "DONE -> $out"

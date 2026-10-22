@@ -188,7 +188,10 @@ public class SmsCodeService {
         if (last != null && last.getCreateTime() != null) {
             long seconds = Duration.between(last.getCreateTime(), now).getSeconds();
             if (seconds < properties.getIntervalSeconds()) {
-                throw new BusinessException("请求过于频繁，请 " + (properties.getIntervalSeconds() - seconds) + " 秒后再试");
+                // 取整可能因毫秒截断出现 seconds = -1，这里夹到 [1, interval] 区间，
+                // 避免出现「请 61 秒后再试」这种超过上限的提示
+                long wait = Math.max(1L, Math.min(properties.getIntervalSeconds(), properties.getIntervalSeconds() - seconds));
+                throw new BusinessException("请求过于频繁，请 " + wait + " 秒后再试");
             }
         }
 
