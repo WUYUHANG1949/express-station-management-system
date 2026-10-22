@@ -40,7 +40,7 @@ public interface ParcelMapper extends BaseMapper<Parcel> {
      *
      * @param keyword   查询关键字
      * @param stationId 限定驿站，可为空
-     * @param onlyPhone 限定手机号（普通用户只能查自己的快件），可为空
+     * @param onlyPhone 限定手机号（防御性兜底：非员工/管理员时按本人手机号收敛），可为空
      * @param limit     最多返回条数
      */
     List<Parcel> selectByKeyword(@Param("keyword") String keyword,
@@ -52,7 +52,7 @@ public interface ParcelMapper extends BaseMapper<Parcel> {
      * 统计逾期未取快件数量（在库且入库时间超过免费保管天数）。
      *
      * @param stationId  驿站ID，为空表示全部驿站（仅管理员可用）
-     * @param limitPhone 数据权限：仅统计该手机号名下的快件（普通用户），可为空
+     * @param limitPhone 数据权限：仅统计该手机号名下的快件（防御性兜底），可为空
      */
     int countOverdue(@Param("stationId") Long stationId, @Param("limitPhone") String limitPhone);
 
@@ -64,7 +64,7 @@ public interface ParcelMapper extends BaseMapper<Parcel> {
      *
      * @param stationId  驿站ID，为空表示全部驿站
      * @param minDays    至少逾期天数，默认 1
-     * @param limitPhone 数据权限：仅查询该手机号的快件（普通用户），可为空
+     * @param limitPhone 数据权限：仅查询该手机号的快件（防御性兜底），可为空
      */
     IPage<Parcel> selectOverduePage(IPage<Parcel> page,
                                     @Param("stationId") Long stationId,

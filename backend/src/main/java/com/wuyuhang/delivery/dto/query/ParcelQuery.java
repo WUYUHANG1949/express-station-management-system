@@ -53,7 +53,7 @@ public class ParcelQuery implements Serializable {
     @Schema(description = "通用关键字（取件核销页使用：取件码/运单号/手机号/姓名）")
     private String keyword;
 
-    /** 普通用户只能查询本人手机号下的快件，由 Service 层强制写入，前端无法伪造 */
+    /** 防御性兜底：既非管理员也非员工时按本人手机号收敛（当前无此类账号），由 Service 层强制写入，前端无法伪造 */
     @Schema(description = "数据权限：仅查询该手机号的快件", hidden = true)
     private String limitPhone;
 }

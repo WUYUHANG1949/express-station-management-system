@@ -256,7 +256,7 @@ public class ParcelService {
      * <ul>
      *   <li>系统管理员：可查看全部驿站数据；</li>
      *   <li>驿站员工：只能查看本驿站数据；</li>
-     *   <li>普通用户：只能查看本人手机号名下的快件。</li>
+     *   <li>其他角色（当前无此类账号，保留防御性兜底）：只能查看本人手机号名下的快件。</li>
      * </ul>
      */
     public PageResult<Parcel> page(long pageNum, long pageSize, ParcelQuery query) {
@@ -337,7 +337,7 @@ public class ParcelService {
      * 「逾期」= 已保管天数超过免费保管天数，且超出部分达到 minDays 天，
      * 便于按「逾期 1 天以上 / 3 天以上 / 7 天以上」分层催取。
      *
-     * @param stationId 驿站ID，管理员可指定；员工与普通用户由后端强制收敛
+     * @param stationId 驿站ID，管理员可指定；员工固定本驿站，其他角色按手机号收敛（防御性）
      * @param minDays   至少逾期天数，默认 1
      */
     public PageResult<Parcel> overduePage(long pageNum, long pageSize, Long stationId, Integer minDays) {
@@ -349,7 +349,7 @@ public class ParcelService {
         } else if (loginUser.hasRole("STAFF")) {
             scopeStationId = loginUser.getStationId();
         } else {
-            // 普通用户只能看到本人名下逾期未取的快件
+            // 其他角色（防御性兜底）：只能看到本人名下逾期未取的快件
             scopeStationId = null;
             limitPhone = currentUserPhone();
         }
@@ -364,7 +364,7 @@ public class ParcelService {
      * 查询逾期未取快件数量，供首页与侧边栏角标使用。
      * <p>
      * 数据权限与分页接口保持一致，避免"角标显示的数字比列表里能看到的还多"：
-     * 管理员可看全部或指定驿站；员工固定本驿站；普通用户只统计本人手机号名下的逾期件。
+     * 管理员可看全部或指定驿站；员工固定本驿站；其他角色（防御性兜底）只统计本人手机号名下的逾期件。
      */
     public int countOverdue(Long stationId) {
         LoginUser loginUser = UserContext.require();
@@ -374,7 +374,7 @@ public class ParcelService {
         if (loginUser.hasRole("STAFF")) {
             return parcelMapper.countOverdue(loginUser.getStationId(), null);
         }
-        // 普通用户：stationId 必须置空，否则会统计到全部驿站的逾期件
+        // 其他角色：stationId 必须置空，否则会统计到全部驿站的逾期件
         return parcelMapper.countOverdue(null, currentUserPhone());
     }
 
@@ -585,7 +585,7 @@ public class ParcelService {
             query.setStationId(requireOwnStation(loginUser));
             return;
         }
-        // 普通用户：只能看本人手机号名下的快件
+        // 其他角色（防御性兜底）：只能看本人手机号名下的快件
         query.setLimitPhone(currentUserPhone());
     }
 

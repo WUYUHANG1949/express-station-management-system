@@ -58,7 +58,7 @@ public final class UserContext {
     }
 
     /**
-     * 当前登录用户所属驿站ID，可能为 null（管理员或普通用户）。
+     * 当前登录用户所属驿站ID，可能为 null（系统管理员不绑定驿站）。
      */
     public static Long stationId() {
         return require().getStationId();

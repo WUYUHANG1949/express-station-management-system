@@ -86,7 +86,7 @@
                 OR p.receiver_phone LIKE CONCAT('%', #{q.keyword}, '%')
                 OR p.receiver_name LIKE CONCAT('%', #{q.keyword}, '%'))
         </if>
-        <!-- 数据权限：普通用户只能看到本人手机号名下的快件，由 Service 层强制写入 -->
+        <!-- 数据权限：非员工/管理员时按本人手机号收敛（防御性兜底），由 Service 层强制写入 -->
         <if test="q.limitPhone != null and q.limitPhone != ''">
             AND p.receiver_phone = #{q.limitPhone}
         </if>
