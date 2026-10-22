@@ -44,6 +44,10 @@ public class MailSmsSender implements SmsSender {
         }
         try {
             SimpleMailMessage mail = new SimpleMailMessage();
+            // 发件人必须与认证账号一致，否则 QQ/163 会拒绝（501 Mail from address must be same as authorization user）
+            if (StringUtils.hasText(cfg.getFrom())) {
+                mail.setFrom(cfg.getFrom());
+            }
             mail.setTo(cfg.getTo());
             mail.setSubject(cfg.getSubject());
             mail.setText(buildBody(message));

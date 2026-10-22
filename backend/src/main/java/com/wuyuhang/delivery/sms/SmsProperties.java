@@ -60,6 +60,16 @@ public class SmsProperties {
         /** 演示收件邮箱：所有验证码统一投递到此邮箱（项目未接入真实短信网关时的替代方案）。 */
         private String to;
 
+        /**
+         * 发件人地址。
+         * <p>
+         * 必须与 {@code spring.mail.username}（认证账号）完全一致：
+         * QQ / 163 等邮箱会校验 {@code MAIL FROM} 与认证用户是否同一个，
+         * 不一致会直接报 <code>501 Mail from address must be same as authorization user</code>。
+         * 因此这里默认取 {@code spring.mail.username}，一般不需要单独配置。
+         */
+        private String from;
+
         /** 邮件主题。 */
         private String subject = "【快递驿站系统】找回密码验证码";
 

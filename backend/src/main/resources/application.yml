@@ -98,6 +98,9 @@ sms:
   mail:
     # 演示收件邮箱：所有验证码统一投递到这里（用环境变量或 application-dev.yml 配置）
     to: ${SMS_MAIL_TO:}
+    # 发件人地址，必须与 spring.mail.username（认证账号）一致，
+    # 否则 QQ/163 等邮箱会报 501 Mail from address must be same as authorization user
+    from: ${spring.mail.username:}
     subject: 【快递驿站系统】找回密码验证码
     from-name: 快递驿站快件收发管理系统
 
