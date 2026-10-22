@@ -39,3 +39,30 @@ export function getMenus() {
     method: 'get'
   })
 }
+
+/**
+ * 找回密码第一步：申请验证码
+ * POST /api/auth/forgot-password/code   body { username, phone }
+ *
+ * 免登录接口。返回 { message, maskedPhone, expireMinutes, provider, demoCode }
+ * 其中 demoCode 只在后端 sms.provider=mock 时返回，用于演示环境自动填充。
+ */
+export function sendForgotCode(data) {
+  return request({
+    url: '/auth/forgot-password/code',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 找回密码第二步：校验验证码并重置密码
+ * POST /api/auth/forgot-password/reset  body { username, phone, code, newPassword }
+ */
+export function resetForgotPassword(data) {
+  return request({
+    url: '/auth/forgot-password/reset',
+    method: 'post',
+    data
+  })
+}

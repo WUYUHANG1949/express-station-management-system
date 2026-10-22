@@ -117,6 +117,7 @@ VALUES (1, 'admin', '$2a$10$/nw9pF5s75pR3mwGJMmFauv40lC4KIIxWen0E/q77fj47tnlPLiA
        (2, 'staff01', '$2a$10$hVXzdkxcpbicxczrhu3xm.A3M97hNn8qeKNiyjeb18AlX15KbNMbG', '李思远', '13800000002', 1, 1, 1),
        (3, 'staff02', '$2a$10$ZhEGZGJ.Sofdm77RLb.ozus4U2qu101sa2jXXIWmoY5mGn7ODNUeW', '陈欣怡', '13800000003', 2, 2, 1);
 
+DELETE FROM `sms_code`;
 DELETE FROM `sys_user_role`;
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)
 VALUES (1, 1), (2, 2), (3, 2);

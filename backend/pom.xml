@@ -44,6 +44,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
+        <!-- 邮件发送：用于「忘记密码」的验证码投递（SMS 的可切换实现之一，见 SmsSender） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
 
         <!-- 持久层：MyBatis-Plus（Spring Boot 3 专用 starter） -->
         <dependency>

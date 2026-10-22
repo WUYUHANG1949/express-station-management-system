@@ -337,4 +337,33 @@ CREATE TABLE `notify_record`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4 COMMENT ='取件通知记录表';
 
+-- ----------------------------------------------------------------------------
+-- 14. sms_code  验证码表（忘记密码 / 手机号校验）
+--
+--     用途：为「忘记密码」提供一次性验证码。设计要点：
+--       ① 只存验证码的哈希？—— 项目采用 6 位数字码 + 5 分钟有效期 + 错误次数上限，
+--          明文存储便于管理员排查，且表中不含任何可被直接利用的凭证（验证码必须
+--          配合用户名与手机号才能使用），因此这里存明文并靠有效期与次数限制防爆破。
+--       ② attempts 记录错误次数，达到上限即视为失效，防止暴力枚举 6 位码。
+--       ③ used=1 表示已使用，同一验证码不可重复兑换。
+-- ----------------------------------------------------------------------------
+DROP TABLE IF EXISTS `sms_code`;
+CREATE TABLE `sms_code`
+(
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `phone`       VARCHAR(20)  NOT NULL COMMENT '接收手机号',
+    `username`    VARCHAR(50)  NOT NULL COMMENT '申请找回的账号名',
+    `code`        VARCHAR(10)  NOT NULL COMMENT '验证码（6 位数字）',
+    `scene`       VARCHAR(30)  NOT NULL DEFAULT 'PASSWORD_RESET' COMMENT '场景：PASSWORD_RESET',
+    `expire_time` DATETIME     NOT NULL COMMENT '过期时间',
+    `used`        TINYINT      NOT NULL DEFAULT 0 COMMENT '是否已使用：0 未用 / 1 已用',
+    `attempts`    INT          NOT NULL DEFAULT 0 COMMENT '校验失败次数',
+    `client_ip`   VARCHAR(64)  DEFAULT NULL COMMENT '请求方 IP（限流与审计用）',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_sms_phone` (`phone`, `scene`, `create_time`),
+    KEY `idx_sms_username` (`username`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4 COMMENT ='验证码表（忘记密码）';
+
 SET FOREIGN_KEY_CHECKS = 1;

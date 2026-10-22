@@ -70,6 +70,46 @@ jwt:
   header: Authorization
   prefix: "Bearer "
 
+# ==================== 验证码 / 短信（找回密码） ====================
+# 设计：把"发送通道"抽象成 SmsSender 接口，业务代码只依赖接口，
+# 换通道（只记日志 / 发邮件 / 发真实短信）不需要改业务逻辑。
+#
+#   provider: mock   默认值。只写日志并把验证码回传到接口响应，零成本、无需审核，
+#                    方便本地开发与答辩演示。
+#   provider: mail   通过邮箱 SMTP 真实投递（成本为零、无需审核，适合毕业设计演示）。
+#                    需在 application-dev.yml 配置 spring.mail.* 与 sms.mail.to。
+#   provider: aliyun 阿里云短信真实发送。需先在控制台申请通过「签名」与「模板」，
+#                    并配置 AK/SK（建议用环境变量注入，不要写进仓库）。
+sms:
+  provider: ${SMS_PROVIDER:mock}
+  code-length: 6
+  # 有效期（分钟）
+  expire-minutes: 5
+  # 验证码最多允许输错次数，超过即失效
+  max-attempts: 5
+  # 同一手机号两次发送的最小间隔（秒）
+  interval-seconds: 60
+  # 同一手机号每天最多发送次数
+  daily-limit: 10
+  # 演示开关：仅当 provider=mock 时生效，把验证码回传到接口响应里。
+  # 生产环境必须设为 false（等于把验证码直接告诉调用方）。
+  expose-code-in-response: true
+
+  mail:
+    # 演示收件邮箱：所有验证码统一投递到这里（用环境变量或 application-dev.yml 配置）
+    to: ${SMS_MAIL_TO:}
+    subject: 【快递驿站系统】找回密码验证码
+    from-name: 快递驿站快件收发管理系统
+
+  aliyun:
+    # 建议通过环境变量注入，切勿提交到代码仓库
+    access-key-id: ${SMS_ALIYUN_AK_ID:}
+    access-key-secret: ${SMS_ALIYUN_AK_SECRET:}
+    # 短信签名与模板需在阿里云控制台申请并通过审核
+    sign-name: ${SMS_ALIYUN_SIGN_NAME:}
+    template-code: ${SMS_ALIYUN_TEMPLATE_CODE:}
+    region-id: cn-hangzhou
+    template-param-name: code
 # ==================== 接口文档 ====================
 springdoc:
   api-docs:

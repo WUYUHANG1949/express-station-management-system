@@ -30,6 +30,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login",
                         "/api/auth/register",
+                        // 找回密码：用户此时正是登录不进来才要找密码，必须免登录
+                        "/api/auth/forgot-password/**",
                         // 收件人自助查询取件码，免登录
                         "/api/public/**",
                         "/error",

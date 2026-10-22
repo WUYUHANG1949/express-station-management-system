@@ -138,30 +138,100 @@
         ③ 自助找回若只凭用户名，任何知道用户名的人都能重置他人密码。
       因此这里给出明确指引，而不是做一个不安全的"假找回"。
     -->
+    <!--
+      找回密码弹窗（两步）
+      设计取舍：提供自助找回，但必须"账号名 + 该账号绑定的手机号"双要素匹配才发码，
+      避免知道用户名就能重置他人密码。验证码 5 分钟有效、一次性使用、错误 5 次作废、
+      同号 60 秒内只能申请一次。
+      发送通道由后端 sms.provider 决定（mock / mail / aliyun）：
+      默认 mock 会把验证码回传到 demoCode，前端自动填入，便于没有短信网关时完整演示；
+      切到 mail 后验证码真实投递到配置的邮箱，此时 demoCode 为 null，需要去邮箱取。
+    -->
     <el-dialog
       v-model="forgotVisible"
-      title="忘记密码怎么办"
+      title="找回密码"
       width="480px"
       class="forgot-dialog"
       append-to-body
+      @closed="resetForgotState"
     >
-      <div class="forgot">
-        <div class="forgot__item">
-          <span class="forgot__tag forgot__tag--staff">驿站员工</span>
-          <p>请联系<b>系统管理员</b>，在「系统管理 → 用户管理」中找到你的账号，点击<b>重置密码</b>即可。</p>
-        </div>
-        <div class="forgot__item">
-          <span class="forgot__tag forgot__tag--admin">系统管理员</span>
-          <p>请联系系统的<b>部署维护人员</b>处理（管理员账号拥有全部权限，不提供自助找回）。</p>
-        </div>
-        <div class="forgot__item">
-          <span class="forgot__tag forgot__tag--user">收件人</span>
-          <p>查件<b>不需要账号</b>，直接用手机号、8 位取件码或运单号自助查询即可。</p>
-        </div>
-      </div>
+      <el-steps :active="forgotStep" simple class="forgot__steps">
+        <el-step title="验证身份" />
+        <el-step title="重置密码" />
+      </el-steps>
+
+      <!-- 第一步：账号名 + 手机号 -->
+      <el-form
+        v-if="forgotStep === 0"
+        ref="forgotFormRef"
+        :model="forgotForm"
+        :rules="forgotRules"
+        label-position="top"
+        @keyup.enter="handleSendCode"
+      >
+        <el-form-item label="账号名" prop="username">
+          <el-input v-model.trim="forgotForm.username" placeholder="请输入要找回的账号名" clearable />
+        </el-form-item>
+        <el-form-item label="该账号绑定的手机号" prop="phone">
+          <el-input v-model.trim="forgotForm.phone" placeholder="请输入 11 位手机号" maxlength="11" clearable />
+        </el-form-item>
+        <p class="forgot__hint">
+          需同时匹配账号名与手机号才会发送验证码。手机号已变更或账号被禁用，请联系管理员处理。
+        </p>
+      </el-form>
+
+      <!-- 第二步：验证码 + 新密码 -->
+      <el-form
+        v-else
+        ref="forgotFormRef"
+        :model="forgotForm"
+        :rules="forgotRules"
+        label-position="top"
+        @keyup.enter="handleResetPassword"
+      >
+        <el-alert
+          v-if="forgotInfo.message"
+          :title="forgotInfo.message"
+          type="success"
+          :closable="false"
+          show-icon
+          class="forgot__alert"
+        />
+        <el-alert
+          v-if="forgotInfo.demoCode"
+          :title="`演示模式（未接入短信网关）：验证码 ${forgotInfo.demoCode} 已自动填入`"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="forgot__alert"
+        />
+        <el-form-item label="验证码" prop="code">
+          <el-input v-model.trim="forgotForm.code" placeholder="6 位数字验证码" maxlength="6" clearable />
+        </el-form-item>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="forgotForm.newPassword" type="password" placeholder="6~20 位" show-password />
+        </el-form-item>
+        <el-form-item label="确认新密码" prop="confirmPassword">
+          <el-input v-model="forgotForm.confirmPassword" type="password" placeholder="再次输入新密码" show-password />
+        </el-form-item>
+      </el-form>
+
       <template #footer>
-        <el-button @click="forgotVisible = false">知道了</el-button>
-        <el-button type="primary" @click="goQueryFromForgot">去自助查询</el-button>
+        <el-button @click="forgotVisible = false">取消</el-button>
+        <el-button
+          v-if="forgotStep === 0"
+          type="primary"
+          :loading="forgotSending"
+          @click="handleSendCode"
+        >
+          获取验证码
+        </el-button>
+        <template v-else>
+          <el-button @click="forgotStep = 0">上一步</el-button>
+          <el-button type="primary" :loading="forgotResetting" @click="handleResetPassword">
+            重置密码
+          </el-button>
+        </template>
       </template>
     </el-dialog>
   </div>
@@ -173,11 +243,12 @@
  * 功能：表单校验、回车提交、加载状态、演示账号一键填充、登录后按 redirect 参数回跳
  * v1.1：仅升级视觉（深蓝渐变品牌区 + 白色圆角登录卡 + 胶囊式演示账号），逻辑未改动
  */
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { InfoFilled, Lock, Right, User, Van } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { sendForgotCode, resetForgotPassword } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -245,10 +316,135 @@ function goQuery() {
 /** 「忘记密码」弹窗是否可见 */
 const forgotVisible = ref(false)
 
-/** 从「忘记密码」弹窗跳到自助查询 */
-function goQueryFromForgot() {
-  forgotVisible.value = false
-  router.push('/query')
+/* ==================== 找回密码 ==================== */
+
+/** 当前步骤：0 验证身份 / 1 重置密码 */
+const forgotStep = ref(0)
+const forgotFormRef = ref(null)
+const forgotSending = ref(false)
+const forgotResetting = ref(false)
+
+/** 第一步返回的信息（提示文案、打码手机号、mock 演示验证码） */
+const forgotInfo = reactive({
+  message: '',
+  maskedPhone: '',
+  provider: '',
+  demoCode: ''
+})
+
+const forgotForm = reactive({
+  username: '',
+  phone: '',
+  code: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+/** 确认密码一致性校验 */
+function validateConfirm(rule, value, callback) {
+  if (!value) {
+    callback(new Error('请再次输入新密码'))
+  } else if (value !== forgotForm.newPassword) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
+
+const forgotRules = {
+  username: [{ required: true, message: '请输入账号名', trigger: 'blur' }],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' }
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 20, message: '密码长度需在 6~20 位之间', trigger: 'blur' }
+  ],
+  confirmPassword: [{ required: true, validator: validateConfirm, trigger: 'blur' }]
+}
+
+/** 打开弹窗时带出已填的账号名，减少重复输入 */
+watch(forgotVisible, (visible) => {
+  if (visible) {
+    forgotForm.username = form.username || ''
+  }
+})
+
+/** 关闭后清空状态，避免下次打开残留上一次的验证码 */
+function resetForgotState() {
+  forgotStep.value = 0
+  forgotInfo.message = ''
+  forgotInfo.maskedPhone = ''
+  forgotInfo.provider = ''
+  forgotInfo.demoCode = ''
+  forgotForm.code = ''
+  forgotForm.newPassword = ''
+  forgotForm.confirmPassword = ''
+  forgotForm.phone = ''
+}
+
+/** 第一步：申请验证码 */
+async function handleSendCode() {
+  if (!forgotFormRef.value) return
+  try {
+    await forgotFormRef.value.validateField(['username', 'phone'])
+  } catch (e) {
+    return
+  }
+  forgotSending.value = true
+  try {
+    const data = await sendForgotCode({
+      username: forgotForm.username,
+      phone: forgotForm.phone
+    })
+    forgotInfo.message = data.message || '验证码已发送'
+    forgotInfo.maskedPhone = data.maskedPhone || ''
+    forgotInfo.provider = data.provider || ''
+    forgotInfo.demoCode = data.demoCode || ''
+    // 演示模式下自动填入验证码，免去"去日志里找码"的麻烦
+    if (data.demoCode) {
+      forgotForm.code = data.demoCode
+    }
+    forgotStep.value = 1
+    ElMessage.success('验证码已发送')
+  } catch (e) {
+    // 错误提示已由 request 拦截器统一弹出，这里无需重复提示
+  } finally {
+    forgotSending.value = false
+  }
+}
+
+/** 第二步：校验验证码并重置密码 */
+async function handleResetPassword() {
+  if (!forgotFormRef.value) return
+  try {
+    await forgotFormRef.value.validate()
+  } catch (e) {
+    return
+  }
+  forgotResetting.value = true
+  try {
+    await resetForgotPassword({
+      username: forgotForm.username,
+      phone: forgotForm.phone,
+      code: forgotForm.code,
+      newPassword: forgotForm.newPassword
+    })
+    ElMessage.success('密码已重置，请用新密码登录')
+    // 把账号名带回登录表单，密码清空让用户自己输
+    form.username = forgotForm.username
+    form.password = ''
+    forgotVisible.value = false
+  } catch (e) {
+    // 验证码错误等提示由拦截器弹出
+  } finally {
+    forgotResetting.value = false
+  }
 }
 
 /**
@@ -649,48 +845,19 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.forgot {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.forgot__steps {
+  margin-bottom: 18px;
 }
 
-.forgot__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.forgot__alert {
+  margin-bottom: 14px;
 }
 
-.forgot__item p {
-  margin: 0;
-  flex: 1;
-  font-size: 13.5px;
+.forgot__hint {
+  margin: -4px 0 0;
+  font-size: 12.5px;
   line-height: 1.7;
-  color: var(--es-text-2);
-}
-
-.forgot__tag {
-  flex-shrink: 0;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 20px;
-}
-
-.forgot__tag--staff {
-  color: #1557cc;
-  background: #e8f0ff;
-}
-
-.forgot__tag--admin {
-  color: #7c4dff;
-  background: #f1ecff;
-}
-
-.forgot__tag--user {
-  color: #0c9472;
-  background: #e7f9f4;
+  color: var(--es-text-3);
 }
 
 /* ==================== 响应式：窄屏隐藏品牌区 ==================== */
