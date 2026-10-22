@@ -370,6 +370,28 @@ Windows 下也可双击 `scripts/start-frontend.bat`。
 > `sms.expose-code-in-response` 仅对 `mock` 生效，生产环境必须设为 `false`。
 > `aliyun` 通道的签名与模板需在阿里云控制台申请通过，AK/SK 建议用 `SMS_ALIYUN_AK_ID`、`SMS_ALIYUN_AK_SECRET` 注入。
 
+#### 实测记录：`mail` 通道已真实发信通过
+
+用 QQ 邮箱（`smtp.qq.com:465`、SSL）按上述步骤配置后实测：
+
+- 接口返回 `code = 200`、`provider = mail`、`demoCode = null`（邮件通道不回传验证码，符合设计）
+- 后端日志：`[MAIL-SMS] 验证码已投递至 <收件邮箱>（对应手机号 138****0002，账号 staff01）`
+- `sms_code` 表落库 1 行 6 位验证码；用邮箱里收到的验证码完成重置后，新密码可登录、旧密码立即失效
+
+**踩坑记录（配邮箱时最容易遇到）**：首次发信报
+
+```
+SMTPSendFailedException: 501 Mail from address must be same as authorization user.
+```
+
+这不是授权码错误（认证已经通过），而是**信封发件人与认证账号不一致** —— QQ、163 等邮箱会校验
+`MAIL FROM` 必须等于登录认证的账号。代码里已处理：`SmsProperties.Mail#from` 默认取
+`${spring.mail.username:}`，即发件人恒等于认证账号，换其他邮箱服务商也无需额外配置。
+若自行改动发件人，务必保证它与 `spring.mail.username` 一致。
+
+> `aliyun` 通道按官方签名规则实现，开发阶段未申请到真实短信签名与模板，**未做线上联调**；
+> 答辩陈述宜表述为「已实现对接、配置密钥即可启用」，不要说成已验证真实发送。
+
 ---
 
 ## 六、接口文档

@@ -453,7 +453,7 @@
 - ☐ 后端已启动（`scripts\start-backend.bat`），访问 <http://localhost:8080/api/auth/login> 不报错
 - ☐ 前端已启动（`scripts\start-frontend.bat`），<http://localhost:5173> 能打开
 - ☐ 数据是干净基线：在库 16 / 逾期 4 / 异常 3 / 货位使用率 2.8%，`sms_code` 为 0 行
-- ☐ 找回密码的 `sms.provider` 为 `mock`（演示最稳），若演示 `mail` 通道需提前配好 `spring.mail.*` 与 `sms.mail.to` 并重启
+- ☐ 找回密码的 `sms.provider` 为 `mock`（演示最稳，验证码自动填入），若演示 `mail` 通道需提前配好 `spring.mail.*` 与 `sms.mail.to` 并重启（`mail` 通道已用 QQ 邮箱实测真实收信通过：验证码会真实发到收件邮箱，页面上不再自动填入）
 - ☐ 浏览器按过 `Ctrl + Shift + R`（避免旧缓存）
 - ☐ 准备好两个浏览器窗口：一个登 `admin`、一个登 `staff01`（做对照实验用）
 - ☐ 提前打开 `docs/user-stories.md` 或 Word 版，方便随时翻到对应 AC 编号
