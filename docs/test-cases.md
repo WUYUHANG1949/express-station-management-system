@@ -20,7 +20,7 @@
 ### 1.1 测试目的
 
 1. 验证系统实现与《软件需求规格说明书》及《前后端接口契约》的一致性，确认全部功能需求（FR-01 至 FR-30）均已实现且行为正确。
-2. 验证三类角色（`ADMIN`、`STAFF`、`USER`）的菜单级与按钮级权限隔离有效，不存在越权访问与越权查询。
+2. 验证两类登录角色（`ADMIN`、`STAFF`）的菜单级与按钮级权限隔离有效，不存在越权访问与越权查询；收件人不设账号、不占角色，其查件能力由免登录自助查询按入参限定。
 3. 验证关键业务路径的数据一致性，重点检查收件登记、取件核销、异常件处理过程中的多表写入与货位计数是否准确。
 4. 验证系统对异常输入与非法操作的容错能力，确认返回的业务码与中文提示语符合接口契约约定。
 5. 为毕业设计论文第 6 章"系统测试"提供可复现的测试记录与结论依据。
@@ -47,10 +47,8 @@
 | admin | ADMIN | 吴宇航 | 无（不限驿站） | 123456 | 系统管理与全量业务验证 |
 | staff01 | STAFF | 李思远 | station_id = 1（幸福小区快递驿站） | 123456 | 驿站业务主流程验证 |
 | staff02 | STAFF | 陈欣怡 | station_id = 2（大学城菜鸟驿站） | 123456 | 跨驿数据隔离验证 |
-| user01 | USER | 王小明 | 无 | 123456 | USER 角色与数据权限第三级验证（仅见本人手机号名下快件） |
-| user02 | USER | 赵丽娜 | 无 | 123456 | 同上 |
 
-账号共 **5 个**（`admin`、`staff01`、`staff02`、`user01`、`user02`）。**自助注册已关闭**：`POST /api/auth/register` 固定返回 `code = 1001`，因此账号数量只能由管理员在「用户管理」中变更，不会随收件人注册而增长；收件人**无需账号**，查件走 `/query` 的免登录自助查询。
+账号共 **3 个**（`admin`、`staff01`、`staff02`），角色共 **2 个**（`ADMIN`、`STAFF`）。**自助注册已关闭**：`POST /api/auth/register` 固定返回 `code = 1001`，因此账号数量只能由管理员在「用户管理」中变更，不会随收件人注册而增长；收件人**无需账号、不占角色**，查件走 `/query` 的免登录自助查询。原 `USER`（普通用户）角色已彻底移除，`user01`、`user02` 两个账号随之删除，故不存在以普通用户身份登录的前置条件。
 
 基线数据要点：`parcel` 表初始 25 条记录；`parcel.id = 1`（运单号 `SF1234567890123`，取件码 `10012034`）为驿站 1 的在库快件；`parcel.id = 7`（运单号 `EMS8899001122334`，取件码 `10042319`，`in_time` 为 4 天前，`overdue_days = 3`，`storage_fee = 2.00`）为逾期在库快件；`parcel.id = 10`（运单号 `ZT7788990011240`）为已取件快件；`parcel.id = 13`（运单号 `YD1122334455670`）为派送中快件；`parcel.id = 14`（运单号 `EMS8899001122340`）为异常件；`parcel.id = 15`（运单号 `JT5566778899010`）为已退回快件；`ship_order` 表初始 8 条记录，其中 `S20260101100004`、`S20260101100008` 为 `PENDING` 状态。
 
@@ -62,8 +60,11 @@
 | `ship_order` | 8 | 状态构成为 `PENDING` 2 条、`ACCEPTED` 2 条、`SHIPPED` 3 条、`CANCELLED` 1 条 |
 | `exception_record` | 3 | 仍为 3 条：破损（`HANDLING`）、地址错误（`PENDING`）、拒收（`RESOLVED`），v1.1 未变更 |
 | `notify_record` | 29 | 由 `parcel` 表推导生成，构成为：① 为仍在货架上的快件（`IN_STORE`/`DELIVERING`/`EXCEPTION`）生成 19 条 `IN_STORE` 到件通知；② 为已超过免费保管期的在库快件生成 3 条 `OVERDUE` 逾期催取通知；③ 为已取件快件生成 5 条 `PICKUP_DONE` 取件确认通知（渠道 `APP`）；④ 另有 2 条 `send_status = FAILED` 的示例记录（1 条 `OVERDUE`、1 条 `EXCEPTION`），带 `fail_reason` 用于演示失败提示与重发。按类型汇总为 `IN_STORE` 19 条、`OVERDUE` 4 条、`PICKUP_DONE` 5 条、`EXCEPTION` 1 条 |
-| `sys_permission` | 43 | v1.1 由 35 项增加到 43 项（菜单类 21 条、按钮类 22 条） |
-| `sys_role_permission` | 75 | ADMIN 43 项（全部权限）+ STAFF 29 项 + USER 3 项（`dashboard`、`parcel:list`、`profile`） |
+| `sys_permission` | 43 | v1.1 由 35 项增加到 43 项（菜单类 21 条、按钮类 22 条），本轮角色收敛未改变权限项数 |
+| `sys_role` | 2 | `ADMIN` 系统管理员、`STAFF` 驿站员工；原 `USER` 普通用户角色已删除 |
+| `sys_user` | 3 | `admin`、`staff01`、`staff02`，密码均为 `$2a$10$` 开头的 BCrypt 密文 |
+| `sys_user_role` | 3 | (1,1) admin→ADMIN、(2,2) staff01→STAFF、(3,2) staff02→STAFF；原 user01/user02 的关联已删除 |
+| `sys_role_permission` | 72 | ADMIN 43 项（全部权限）+ STAFF 29 项；原 USER 的 3 项授权（`dashboard`、`parcel:list`、`profile`）已删除，总数由 75 降为 72 |
 
 ### 1.4 测试方法
 
@@ -102,11 +103,11 @@
 | TC-001 | 认证模块 | 使用正确账号密码登录 | 已执行初始化脚本，admin 账号 status = 1 | 1. 打开登录页；2. 输入用户名 admin、密码 123456；3. 点击登录 | HTTP 200，`code = 200`，`data.token` 非空、`tokenType = Bearer`、`expiresIn = 86400`；`data.userInfo.roles` 含 `ADMIN`，`permissions` 含 `system:user:list` 与 `parcel:export`；`sys_user.last_login_time` 更新为当前时间；跳转首页概览 | 通过 | 高 |
 | TC-002 | 认证模块 | 使用错误密码登录 | admin 账号存在 | 1. 输入用户名 admin、密码 654321；2. 点击登录 | HTTP 200，`code = 1001`，`message = 用户名或密码错误`；不返回 token；停留在登录页；`sys_user.last_login_time` 不变 | 通过 | 高 |
 | TC-003 | 认证模块 | 使用不存在的用户名登录 | 数据库中不存在用户名 zhangsan999 | 1. 输入用户名 zhangsan999、密码 123456；2. 点击登录 | HTTP 200，`code = 1001`，`message = 用户名或密码错误`；提示语与密码错误场景一致，不泄露账号是否存在 | 通过 | 中 |
-| TC-004 | 认证模块 | 被禁用账号登录 | 将 user02 的 `sys_user.status` 置为 0 | 1. 输入用户名 user02、密码 123456；2. 点击登录 | HTTP 200，`code = 1001`，`message = 账号已被禁用，请联系管理员`；不返回 token；测试完成后将 status 恢复为 1 | 通过 | 高 |
+| TC-004 | 认证模块 | 被禁用账号登录 | 将 staff02 的 `sys_user.status` 置为 0 | 1. 输入用户名 staff02、密码 123456；2. 点击登录 | HTTP 200，`code = 1001`，`message = 账号已被禁用，请联系管理员`；不返回 token；测试完成后将 status 恢复为 1 并确认 staff02 可正常登录 | 通过 | 高 |
 | TC-005 | 认证模块 | 用户名或密码为空提交 | 打开登录页 | 1. 用户名与密码均留空；2. 点击登录 | 前端表单校验拦截并提示必填；若绕过前端直接请求，HTTP 200，`code = 400`，提示参数校验不通过；不产生无效登录记录 | 通过 | 中 |
-| TC-006 | 认证模块 | 自助注册接口已关闭，调用被拒绝 | 已执行初始化脚本，`sys_user` 共 5 行 | 1. 用 Postman 请求 `POST /api/auth/register`，body 携带 `{"username":"tester01","password":"123456","confirmPassword":"123456","realName":"测试员","phone":"13900000099"}`；2. 再不带 body 请求一次 | 两次均 HTTP 200，`code = 1001`，`message = 自助注册已关闭：收件人无需账号，请直接使用自助查询；系统内账号请联系管理员创建`；`sys_user`、`sys_user_role` 记录数均不变 | 通过 | 高 |
+| TC-006 | 认证模块 | 自助注册接口已关闭，调用被拒绝 | 已执行初始化脚本，`sys_user` 共 3 行 | 1. 用 Postman 请求 `POST /api/auth/register`，body 携带 `{"username":"tester01","password":"123456","confirmPassword":"123456","realName":"测试员","phone":"13900000099"}`；2. 再不带 body 请求一次 | 两次均 HTTP 200，`code = 1001`，`message = 自助注册已关闭：收件人无需账号，请直接使用自助查询；系统内账号请联系管理员创建`；`sys_user`、`sys_user_role` 记录数均不变（`AuthService.register()` 与 `RegisterDTO` 已删除，接口不再解析请求体） | 通过 | 高 |
 | TC-007 | 认证模块 | 登录页不再提供注册入口 | 未登录状态，清除 localStorage 中的 `es_token` | 1. 打开 `/login`；2. 查看卡片底部入口；3. 点击该入口；4. 直接在地址栏访问 `/register` | 底部只显示「收件人查件？免登录自助查询 →」，**没有**「立即注册」入口；点击后进入 `/query` 免登录查询页；访问 `/register` 被重定向到 `/login`（注册页文件已删除，无独立页面） | 通过 | 高 |
-| TC-008 | 认证模块 | 管理员创建账号后可正常登录 | 已用 admin 登录；`sys_user` 中不存在 tester01 | 1. 进入「用户管理」新增账号 tester01，手机号 13900000099，分配 `USER` 角色；2. 退出登录；3. 用 tester01 / 123456 登录 | 新增返回 `code = 200`；`sys_user` 新增 1 行，`password` 为 `$2a$10$` 开头的 BCrypt 密文、`status = 1`、`gender = 0`；`sys_user_role` 新增 1 行关联 USER 角色；新账号可登录，侧边栏只有 3 项菜单，且只看到 13900000099 名下的快件 | 通过 | 高 |
+| TC-008 | 认证模块 | 管理员创建账号后可正常登录 | 已用 admin 登录；`sys_user` 中不存在 tester01 | 1. 进入「用户管理」新增账号 tester01，手机号 13900000099，分配 `STAFF` 角色、所属驿站 幸福小区快递驿站；2. 退出登录；3. 用 tester01 / 123456 登录 | 新增返回 `code = 200`；`sys_user` 新增 1 行，`password` 为 `$2a$10$` 开头的 BCrypt 密文、`status = 1`、`gender = 0`；`sys_user_role` 新增 1 行关联 STAFF 角色（`role_id = 2`）；新账号可登录，侧边栏为员工菜单（与 staff01 一致，只有业务菜单、无系统管理），且数据范围为本驿站；角色下拉中只能选 `ADMIN` 或 `STAFF`，不存在 `USER` | 通过 | 高 |
 | TC-009 | 认证模块 | 管理员创建账号时用户名重复被拒绝 | `admin` 账号已存在；已用 admin 登录 | 1. 在「用户管理」新增账号，用户名填 admin，其余字段合法；2. 提交 | HTTP 200，`code = 1001`，`message = 该用户名已被注册`；`sys_user` 记录数不变（由唯一索引 `uk_user_username` 保障） | 通过 | 中 |
 | TC-010 | 认证模块 | 退出登录后令牌失效 | 已用 staff01 登录 | 1. 点击退出登录；2. 观察 localStorage 中 `es_token`；3. 使用退出前的 token 直接请求 `GET /api/auth/me` | 前端清除 `es_token` 并跳转登录页；后端接口返回 HTTP 200，`code = 401`，`message = 登录已过期，请重新登录` | 通过 | 中 |
 | TC-011 | 认证模块 | 未携带令牌访问受保护接口 | 未登录状态 | 1. 使用 Postman 请求 `GET /api/parcels/page?pageNum=1&pageSize=10`，不带 Authorization 头 | HTTP 200，`code = 401`，`message = 登录已过期，请重新登录`；不返回任何快件数据 | 通过 | 高 |
@@ -115,10 +116,10 @@
 
 | 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
 | -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
-| TC-012 | 权限模块 | USER 角色访问系统管理接口被拒 | 已用 user01 登录并取得 token | 1. 请求 `GET /api/users/page?pageNum=1&pageSize=10`，携带 user01 的 token | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；不返回用户列表数据 | 通过 | 高 |
-| TC-013 | 权限模块 | STAFF 角色访问用户管理接口被拒 | 已用 staff01 登录并取得 token | 1. 请求 `GET /api/users/page?pageNum=1&pageSize=10`，携带 staff01 的 token | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；数据库无任何变更 | 通过 | 高 |
-| TC-014 | 权限模块 | USER 登录后菜单项数量与内容正确 | 已用 user01 登录 | 1. 调用 `GET /api/auth/menus`；2. 观察左侧菜单 | `code = 200`；菜单仅含首页概览（`dashboard`）、快件查询（`parcel:list`）、个人中心（`profile`）三项；不含收件登记、取件核销、系统管理等菜单 | 通过 | 高 |
-| TC-015 | 权限模块 | USER 仅能查询本人名下快件 | 已用 user01（手机号 13900000001）登录；数据库中该手机号对应在库快件 1 条 | 1. 请求 `GET /api/parcels/page?pageNum=1&pageSize=10&receiverPhone=13900000002`，携带 user01 的 token | `code = 200`；`data.list` 中所有记录的 `receiverPhone` 均为 13900000001，不含 user02 名下的快件；后端强制以当前登录用户手机号过滤 | 通过 | 高 |
+| TC-012 | 权限模块 | 原普通用户账号已删除，登录失败 | 已执行初始化脚本；`sys_user` 中不存在 user01（账号 3 个：admin / staff01 / staff02） | 1. 用 Postman 请求 `POST /api/auth/login`，body 为 `{"username":"user01","password":"123456"}` | HTTP 200，`code = 1001`，`message = 用户名或密码错误`；不返回 token；提示语与"用户不存在"完全一致，不泄露该账号是否曾经存在 | 通过 | 高 |
+| TC-013 | 权限模块 | STAFF 角色访问用户管理接口被拒 | 已用 staff01 登录并取得 token | 1. 请求 `GET /api/users/page?pageNum=1&pageSize=10`，携带 staff01 的 token；2. 请求 `GET /api/users/stats` | 两次均 HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；数据库无任何变更 | 通过 | 高 |
+| TC-014 | 权限模块 | 角色列表只有 ADMIN 与 STAFF 两个角色 | 已用 admin 登录 | 1. 请求 `GET /api/roles/list`；2. 请求 `GET /api/roles/page?pageNum=1&pageSize=10`；3. 进入「系统管理 → 角色权限」页面；4. 请求 `GET /api/users/page?pageNum=1&pageSize=10&roleCode=USER` | 两次角色接口均 `code = 200`，列表仅含 `ADMIN` 与 `STAFF` 两条，不存在 `USER`；页面角色编码占位文案为 `ADMIN / STAFF`；第 4 步返回空列表（`total = 0`），证明系统中无 USER 角色账号 | 通过 | 高 |
+| TC-015 | 权限模块 | STAFF 伪造 stationId 仍只返回本驿站 | 已用 staff01（所属驿站 1）登录；驿站 2 有快件数据 | 1. 请求 `GET /api/parcels/page?pageNum=1&pageSize=10&stationId=2`，携带 staff01 的 token；2. 请求不带 `stationId` 的同一接口；3. 用 admin 携带同样 `stationId=2` 请求一次作对照 | 第 1 次 `code = 200`，但 `data.list` 中所有记录的 `stationId` 均为 1（后端在 `ParcelService.applyDataScope` 中把 `stationId` 无条件覆盖为本驿站，前端传什么都盖掉）；第 2 次结果相同；第 3 次 admin 返回驿站 2 的数据，证明员工跨站查询被拦截 | 通过 | 高 |
 | TC-016 | 权限模块 | STAFF 无删除快件按钮与权限 | 已用 staff01 登录 | 1. 进入快件查询页，观察操作列；2. 直接请求 `DELETE /api/parcels/1` | 页面不显示"删除"按钮（staff01 无 `parcel:delete` 权限）；直接调用接口返回 `code = 403`，`message = 无操作权限，请联系管理员`；`parcel.id = 1` 的 `deleted` 仍为 0 | 通过 | 高 |
 | TC-017 | 权限模块 | 驿站排行统计仅 ADMIN 可访问 | 分别取得 admin 与 staff01 的 token | 1. 用 admin 请求 `GET /api/stats/station-rank`；2. 用 staff01 请求同一接口 | 第 1 次 `code = 200`，`data` 为含 `stationName`、`parcelCount`、`pickupCount` 的数组；第 2 次 `code = 403`，`message = 无操作权限，请联系管理员` | 通过 | 中 |
 | TC-018 | 权限模块 | 令牌被篡改后校验失败 | 已取得 staff01 的合法 token | 1. 将 token 末位字符替换后请求 `GET /api/auth/me` | HTTP 200，`code = 401`，`message = 登录已过期，请重新登录`；前端清除 token 并跳转登录页 | 通过 | 中 |
@@ -173,7 +174,7 @@
 | TC-047 | 异常件管理 | 处理异常时同步快件状态为已退回 | 存在 `handle_status` 为 `HANDLING` 的异常记录，对应快件状态为 `EXCEPTION` | 1. 请求 `PUT /api/exceptions/{id}/handle`，body 为 `{"handleStatus":"RESOLVED","handleResult":"已办理退回","parcelStatus":"RETURNED"}` | HTTP 200，`code = 200`；对应 `parcel.status` 变为 `RETURNED`、`statusName = 已退回`；异常记录处理状态与处理结果同步更新 | 通过 | 高 |
 | TC-048 | 异常件管理 | 处理不存在的异常记录 | 数据库中不存在该异常记录 id | 1. 请求 `PUT /api/exceptions/999999/handle`，body 合法 | HTTP 200，`code = 404`，提示资源不存在；不产生任何数据变更 | 通过 | 低 |
 | TC-049 | 异常件管理 | 按处理状态筛选待处理异常 | 已用 staff01 登录；存在 `PENDING` 异常记录 | 1. 请求 `GET /api/exceptions/page?pageNum=1&pageSize=10&handleStatus=PENDING&stationId=1` | HTTP 200，`code = 200`；`data.list` 全部为 `handleStatus = PENDING` 的记录；`total` 与数据库查询结果一致 | 通过 | 中 |
-| TC-050 | 异常件管理 | USER 角色登记异常被拒 | 已用 user01 登录 | 1. 请求 `POST /api/exceptions`，body 为 `{"parcelId":1,"exceptionType":"OTHER","description":"测试"}` | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；`exception_record` 表无新增记录；`parcel.id = 1` 状态不变 | 通过 | 中 |
+| TC-050 | 异常件管理 | 无异常登记权限时被拒绝 | 已用 staff01 登录，并在「角色权限」页撤销 STAFF 角色的 `exception:add` 授权后重新登录（测试后恢复授权并重登） | 1. 请求 `POST /api/exceptions`，body 为 `{"parcelId":1,"exceptionType":"OTHER","description":"测试"}` | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；`exception_record` 表无新增记录；`parcel.id = 1` 状态不变 | 通过 | 中 |
 
 ### 2.7 查询、导出与统计模块
 
@@ -187,7 +188,7 @@
 | TC-056 | 快件查询 | 编辑快件基本信息 | 已用 staff01 登录，拥有 `parcel:edit` 权限；`parcel.id = 3` 为 `IN_STORE` | 1. 请求 `PUT /api/parcels/3`，修改 `receiverName` 为 李强强、`overdueDays` 为 5、`remark` 为"大件，需两人搬运"；2. 查询详情 | HTTP 200，`code = 200`；`receiver_name`、`overdue_days`、`remark` 更新，`update_time` 刷新；`waybill_no` 与 `pickup_code` 保持不变 | 通过 | 中 |
 | TC-057 | 快件查询 | 更换存放货位时同步货位计数 | `parcel.id = 3` 的 `shelf_id = 2` | 1. 请求 `PUT /api/parcels/3` 将 `shelfId` 改为 3；2. 查询 `shelf` 表 | HTTP 200，`code = 200`；`parcel.id = 3` 的 `shelf_id = 3`；`shelf.id = 2` 的 `used_count` 减 1，`shelf.id = 3` 的 `used_count` 加 1 | 通过 | 中 |
 | TC-058 | 导出 | 导出台账为 Excel 文件 | 已用 staff01 登录，拥有 `parcel:export` 权限 | 1. 在快件查询页选择筛选条件后点击导出；2. 观察响应与文件 | HTTP 200；响应头含 `Content-Disposition: attachment`；文件为 `.xlsx` 格式且可正常打开；表头包含运单号、快递公司、快件类型、收件人、手机号、取件码、状态、入库时间、取件时间；记录数与筛选结果一致 | 通过 | 中 |
-| TC-059 | 导出 | 无导出权限时被拒绝 | 已用 user01 登录 | 1. 请求 `GET /api/parcels/export?stationId=1` | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；不返回文件流 | 通过 | 中 |
+| TC-059 | 导出 | 无导出权限时被拒绝 | 已用 staff01 登录，并在「角色权限」页撤销 STAFF 角色的 `parcel:export` 授权后重新登录（测试后恢复授权并重登） | 1. 请求 `GET /api/parcels/export?stationId=1` | HTTP 200，`code = 403`，`message = 无操作权限，请联系管理员`；不返回文件流 | 通过 | 中 |
 | TC-060 | 统计 | 首页概览指标正确 | 已用 staff01 登录 | 1. 请求 `GET /api/stats/overview?stationId=1`；2. 与数据库统计结果比对 | HTTP 200，`code = 200`；`data` 含 `todayInCount`、`todayPickupCount`、`todayShipCount`、`inStoreCount`、`overdueCount`、`exceptionCount`、`deliveringCount`、`totalParcelCount` 与 `shelfUsage`（`total`、`used`、`rate`）；各项数值与数据库统计一致，`shelfUsage.rate` 为占用率百分比 | 通过 | 中 |
 | TC-061 | 统计 | 近 7 日出入库趋势 | 已用 staff01 登录 | 1. 请求 `GET /api/stats/trend?days=7&stationId=1` | HTTP 200，`code = 200`；`data.dates` 长度为 7、格式为 `MM-dd`；`data.inCounts` 与 `data.pickupCounts` 长度均为 7 且与 `dates` 一一对应；当日入库数与 `overview.todayInCount` 一致 | 通过 | 中 |
 | TC-062 | 统计 | 快递公司分布统计 | 已用 staff01 登录 | 1. 请求 `GET /api/stats/company?stationId=1` | HTTP 200，`code = 200`；`data` 为 `[{ name, value }]` 数组，`name` 为快递公司名称（如 顺丰速运）、`value` 为数量；所有 `value` 之和等于该驿站快件总数 | 通过 | 中 |
@@ -198,8 +199,8 @@
 | 用例编号 | 所属模块 | 用例标题 | 前置条件 | 测试步骤 | 预期结果 | 实际结果 | 优先级 |
 | -------- | -------- | -------- | -------- | -------- | -------- | -------- | ------ |
 | TC-064 | 用户管理 | 新增用户并指定角色与驿站 | 已用 admin 登录 | 1. 请求 `POST /api/users`，新增用户名 staff03、密码 123456、姓名 周明、手机号 13800000004、`roleIds = [2]`、`stationId = 1`；2. 查询列表 | HTTP 200，`code = 200`；`sys_user` 新增 1 行且密码为 BCrypt 密文；`sys_user_role` 新增 1 行 `role_id = 2`；列表返回对象含 `roleNames = ["驿站员工"]` 与 `stationName = 幸福小区快递驿站`；新账号可登录且可见业务菜单 | 通过 | 高 |
-| TC-065 | 用户管理 | 禁用用户后无法登录 | 存在状态正常的账号 user02 | 1. 请求 `PUT /api/users/5/status?status=0`；2. 使用 user02 登录 | 第 1 步 `code = 200`，`sys_user.status = 0`；第 2 步 `code = 1001`，`message = 账号已被禁用，请联系管理员`；测试后恢复 `status = 1` | 通过 | 中 |
-| TC-066 | 用户管理 | 重置用户密码 | 已用 admin 登录 | 1. 请求 `PUT /api/users/5/password?password=888888`；2. 用 user02/888888 登录；3. 用 user02/123456 登录 | 第 1 步 `code = 200`，`sys_user.password` 更新为新密文的 BCrypt 值；第 2 步登录成功；第 3 步 `code = 1001`；测试后恢复初始密码 | 通过 | 中 |
+| TC-065 | 用户管理 | 禁用用户后无法登录 | 存在状态正常的账号 staff02（`id = 3`） | 1. 请求 `PUT /api/users/3/status?status=0`；2. 使用 staff02 登录 | 第 1 步 `code = 200`，`sys_user.status = 0`；第 2 步 `code = 1001`，`message = 账号已被禁用，请联系管理员`；测试后恢复 `status = 1` | 通过 | 中 |
+| TC-066 | 用户管理 | 重置用户密码 | 已用 admin 登录 | 1. 请求 `PUT /api/users/3/password?password=888888`；2. 用 staff02/888888 登录；3. 用 staff02/123456 登录 | 第 1 步 `code = 200`，`sys_user.password` 更新为新密文的 BCrypt 值；第 2 步登录成功；第 3 步 `code = 1001`；测试后恢复初始密码 | 通过 | 中 |
 | TC-067 | 用户管理 | 逻辑删除用户 | 已用 admin 登录；存在测试账号 tester01 | 1. 请求 `DELETE /api/users/{id}`；2. 查询用户分页 | HTTP 200，`code = 200`；`sys_user.deleted = 1`；分页列表中不再出现该用户；该用户的 `sys_user_role` 关联记录保留 | 通过 | 中 |
 | TC-068 | 角色权限 | 查看与重新分配角色权限 | 已用 admin 登录 | 1. 请求 `GET /api/roles/2/permissions`；2. 请求 `PUT /api/roles/2/permissions`，body 为 `{"permIds":[1,10,11,12,13,70]}`；3. 重新查询 | 第 1 次返回 staff 原有权限 id 数组；第 2 次 `code = 200`；第 3 次返回的数组与提交集合一致；`sys_role_permission` 中 `role_id = 2` 的记录数等于 6，无重复行；测试后恢复原权限集合 | 通过 | 中 |
 | TC-069 | 角色权限 | 获取权限树 | 已用 admin 登录 | 1. 请求 `GET /api/permissions/tree?type=MENU`；2. 请求 `GET /api/permissions/tree?type=ALL` | 两次均 `code = 200`；`type = MENU` 时节点 `permType` 均为 `MENU`；`type = ALL` 时含 `BUTTON` 节点；顶层节点 `parent_id = 0`，子节点位于父节点 `children` 中，节点含 `permCode`、`permName` | 通过 | 中 |
@@ -225,7 +226,7 @@
 | TC-084 | 通知管理 | 收件人手机号非法时记为发送失败 | 已用 staff01 登录；存在一条 `receiver_phone` 非 11 位或不存在的快件（可临时将某在库快件手机号改为空或 10 位） | 1. 请求 `POST /api/notifications`，body 为 `{"parcelId":4,"notifyType":"IN_STORE","channel":"SMS","receiverPhone":"139000000"}`；2. 查询返回对象与数据库记录 | HTTP 200，`code = 200`（接口本身成功执行）；返回对象 `sendStatus = FAILED`、`sendStatusName = 发送失败`、`failReason` 非空且提示号码不合法或为空；失败记录仍持久化到 `notify_record`，便于后续重发与核对 | 通过 | 中 |
 | TC-085 | 逾期催取 | 逾期列表按逾期天数分层筛选 | 已用 staff01 登录；驿站 1 存在逾期 1 天以上、3 天以上与 7 天以上的在库快件（可先调整 `in_time` 构造） | 1. 依次请求 `GET /api/parcels/overdue/page?pageNum=1&pageSize=10&stationId=1&minDays=1`、`minDays=3`、`minDays=7` | 三次均 `code = 200`；结果集逐层收窄（`minDays = 7` 的结果是 `minDays = 3` 的子集，`minDays = 3` 是 `minDays = 1` 的子集）；每项 `overdueDayCount` 均不小于对应 `minDays`；列表按 `overdueDayCount` 倒序；`minDays` 传 0 时按 1 处理 | 通过 | 高 |
 | TC-086 | 逾期催取 | 逾期列表角色数据权限隔离 | 分别取得 staff01（驿站 1）与 staff02（驿站 2）的令牌；两个驿站均存在逾期件 | 1. staff01 请求 `GET /api/parcels/overdue/page?stationId=2&minDays=1`；2. staff01 请求不带 `stationId` 的同一接口；3. staff02 请求不带 `stationId` 的同一接口 | 第 1 次虽显式传入驿站 2，后端仍强制收敛为 staff01 的本驿站，返回记录 `stationId` 全部为 1；第 2 次返回驿站 1 的逾期件；第 3 次返回驿站 2 的逾期件；三人（含 ADMIN）结果互不越权 | 通过 | 高 |
-| TC-087 | 逾期催取 | 逾期件数量角标与列表条数一致性 | 已用 staff01 登录；驿站 1 存在逾期未取快件 | 1. 请求 `GET /api/parcels/overdue/count?stationId=2`；2. 请求不带 `stationId`；3. 依次请求 `GET /api/stats/overview`、`GET /api/parcels/overdue/count`、`GET /api/parcels/overdue/page?minDays=1`、`GET /api/notifications/overdue-pending` | 前两次均 `code = 200`；第 1 次仍按 staff01 本驿站统计（不因传入驿站 2 而统计他站）；第 2 次返回本驿站逾期件数，且与 `parcel` 表中 `status = 'IN_STORE'` 且 `DATEDIFF(NOW(), in_time) - overdue_days >= 1` 的记录数一致；第 3 步**四处数字必须完全相同**（概览角标 / 数量接口 / 逾期列表条数 / 待催取数量），确保"看板显示的数字"与"点进去能看到的条数"一致。补充：user01（普通用户）调用时按本人手机号统计（v1.1 已修复，不再返回全部驿站数字） | 通过 | 高 |
+| TC-087 | 逾期催取 | 逾期件数量角标与列表条数一致性 | 已用 staff01 登录；驿站 1 存在逾期未取快件 | 1. 请求 `GET /api/parcels/overdue/count?stationId=2`；2. 请求不带 `stationId`；3. 依次请求 `GET /api/stats/overview`、`GET /api/parcels/overdue/count`、`GET /api/parcels/overdue/page?minDays=1`、`GET /api/notifications/overdue-pending` | 前两次均 `code = 200`；第 1 次仍按 staff01 本驿站统计（不因传入驿站 2 而统计他站）；第 2 次返回本驿站逾期件数，且与 `parcel` 表中 `status = 'IN_STORE'` 且 `DATEDIFF(NOW(), in_time) - overdue_days >= 1` 的记录数一致；第 3 步**四处数字必须完全相同**（概览角标 / 数量接口 / 逾期列表条数 / 待催取数量），确保"看板显示的数字"与"点进去能看到的条数"一致。补充：`ParcelService.countOverdue` 另保留"既非 ADMIN 也非 STAFF"时按本人手机号统计的防御性分支，当前无此类账号，故本用例不再包含普通用户步骤 | 通过 | 高 |
 
 ### 2.10 货位可视化与数据大屏模块（v1.1 新增）
 
@@ -267,7 +268,7 @@
 | TC-API-004 | 注册（已关闭，不带请求体） | POST | `/api/auth/register` | 无请求体 | 200 | 1001 | 同上，`data` 为空 | 路径保留只为给出可读提示，不返回 404 |
 | TC-API-005 | 退出登录 | POST | `/api/auth/logout` | 请求头 `Authorization: Bearer <token>` | 200 | 200 | `data = null` | 前端同时清除 `es_token` |
 | TC-API-006 | 当前用户信息 | GET | `/api/auth/me` | 请求头 `Authorization: Bearer <staff01 token>` | 200 | 200 | `id`、`username`、`realName`、`stationId=1`、`stationName`、`roles`、`permissions` | 无令牌时 401 |
-| TC-API-007 | 当前用户菜单树 | GET | `/api/auth/menus` | 请求头 `Authorization: Bearer <user01 token>` | 200 | 200 | 数组元素含 `id`、`permCode`、`permName`、`path`、`icon`、`children` | USER 仅 3 项菜单 |
+| TC-API-007 | 当前用户菜单树 | GET | `/api/auth/menus` | 请求头 `Authorization: Bearer <staff01 token>` | 200 | 200 | 数组元素含 `id`、`permCode`、`permName`、`path`、`icon`、`children` | STAFF 不含「系统管理」节点 |
 | TC-API-008 | 收件登记 | POST | `/api/parcels/in-store` | `{"waybillNo":"SF1234567890999","stationId":1,"expressCompany":"顺丰速运","parcelType":"NORMAL","receiverName":"王小明","receiverPhone":"13900000001","weight":1.5,"freight":0,"shelfId":1,"overdueDays":3,"remark":"客户要求短信通知"}` | 200 | 200 | `id`、`waybillNo`、`pickupCode`（8 位）、`status=IN_STORE`、`shelfCode` | 写 parcel、trace 并更新货位计数 |
 | TC-API-009 | 收件登记（运单号重复） | POST | `/api/parcels/in-store` | 同上传入已存在的 `waybillNo = SF1234567890123` | 200 | 1001 | `message = 该运单号已登记，请勿重复入库` | 数据库无写入 |
 | TC-API-010 | 收件登记（运单号格式错误） | POST | `/api/parcels/in-store` | `waybillNo = abc-123`，其余字段合法 | 200 | 1001 | `message = 运单号格式不正确，请核对快递公司` | 正则校验拦截 |
@@ -275,7 +276,7 @@
 | TC-API-012 | 取件核销 | POST | `/api/parcels/pickup` | `{"waybillNo":"SF1234567890123","pickupCode":"10012034","receiverName":"王小明","receiverPhone":"13900000001","pickupType":"SELF","verifyType":"CODE","storageFee":0,"remark":""}` | 200 | 200 | 快件状态更新为 `PICKED_UP`；`pickup_record`、`parcel_trace` 与 `notify_record`（`PICKUP_DONE`）新增 | 五表同一事务，通知失败不影响核销 |
 | TC-API-013 | 取件核销（取件码错误） | POST | `/api/parcels/pickup` | 同上但 `pickupCode = 99999999` | 200 | 1001 | `message = 取件码不正确，请核对` | 状态与记录均不变 |
 | TC-API-014 | 取件核销（状态不允许） | POST | `/api/parcels/pickup` | `waybillNo = ZT7788990011240`，`pickupCode = 10058765`（该件已取件） | 200 | 1001 | `message = 该快件当前状态为「已取件」，不可取件` | 状态前置校验 |
-| TC-API-015 | 快件分页条件查询 | GET | `/api/parcels/page` | `pageNum=1&pageSize=10&stationId=1&status=IN_STORE&expressCompany=顺丰速运` | 200 | 200 | `total`、`pages`、`pageNum`、`pageSize`、`list`；列表项含 `statusName`、`parcelTypeName`、`stationName`、`shelfCode` | USER 调用时强制按本人手机号过滤 |
+| TC-API-015 | 快件分页条件查询 | GET | `/api/parcels/page` | `pageNum=1&pageSize=10&stationId=1&status=IN_STORE&expressCompany=顺丰速运` | 200 | 200 | `total`、`pages`、`pageNum`、`pageSize`、`list`；列表项含 `statusName`、`parcelTypeName`、`stationName`、`shelfCode` | STAFF 调用时强制按本驿站覆盖 `stationId` |
 | TC-API-016 | 快件详情 | GET | `/api/parcels/{id}` | `id = 1` | 200 | 200 | `waybillNo`、`pickupCode`、`status`、`inTime`、`overdueDays`、`storageDays`、`overdueFee`、`operatorName` | 不存在时 404 |
 | TC-API-017 | 快件轨迹 | GET | `/api/parcels/{id}/traces` | `id = 10` | 200 | 200 | 数组元素含 `id`、`operateType`、`operateDesc`、`operatorName`、`operateTime` | 至少含 IN_STORE 与 PICKUP |
 | TC-API-018 | 编辑快件 | PUT | `/api/parcels/{id}` | `{"receiverName":"李强强","receiverPhone":"13900000003","parcelType":"LARGE","shelfId":3,"overdueDays":5,"remark":"大件"}` | 200 | 200 | 更新后的快件对象；`update_time` 刷新 | 需 `parcel:edit` 权限 |
@@ -317,7 +318,7 @@
 | TC-API-054 | 批量催取逾期件 | POST | `/api/notifications/batch-overdue` | `stationId=1&minDays=1` | 200 | 200 | `message = 本次共发送 N 条催取通知`；`data` 为整数 N；`notify_record` 新增 N 条 `OVERDUE`/`SMS` 记录 | 需 `notify:send`；同一快件当天去重 |
 | TC-API-055 | 批量催取（当天重复调用） | POST | `/api/notifications/batch-overdue` | 紧接上一条再次调用 `stationId=1&minDays=1` | 200 | 200 | `data` 为 0（或显著减少）；当天 `OVERDUE` 记录数不再增加 | 去重逻辑生效 |
 | TC-API-056 | 待催取逾期件数量 | GET | `/api/notifications/overdue-pending` | `stationId=1` | 200 | 200 | `data` 为非负整数，口径为"至少逾期 1 天"的在库快件数（上限 50） | 需 `notify:list` |
-| TC-API-057 | 通知记录查询（USER 越权） | GET | `/api/notifications/page` | `pageNum=1&pageSize=10`，请求头为 user01 令牌 | 200 | 403 | `message = 无操作权限，请联系管理员` | `USER` 无 `notify:list`，先被权限切面拦截 |
+| TC-API-057 | 通知记录查询（无 `notify:list` 权限） | GET | `/api/notifications/page` | `pageNum=1&pageSize=10`，请求头为"撤销 STAFF 的 `notify:list` 授权后重新登录"的 staff01 令牌 | 200 | 403 | `message = 无操作权限，请联系管理员` | 先被权限切面拦截；测试后恢复授权 |
 | TC-API-058 | 逾期未取分页查询 | GET | `/api/parcels/overdue/page` | `pageNum=1&pageSize=10&stationId=1&minDays=3` | 200 | 200 | 分页结构；`list` 中每条 `overdueDayCount ≥ 3`；按逾期天数倒序；元素含 `statusName`、`storageDays`、`overdueFee` | 需 `parcel:overdue` |
 | TC-API-059 | 逾期件数量 | GET | `/api/parcels/overdue/count` | `stationId=1` | 200 | 200 | `data` 为整数，与 `parcel` 表中在库且已超免费保管期的记录数一致 | 需 `parcel:list`；员工强制本驿站 |
 | TC-API-060 | 货位地图 | GET | `/api/shelves/map` | `stationId=1` | 200 | 200 | `ShelfMapVO` 数组；元素含 `shelfId`、`shelfCode`、`area`、`capacity`、`usedCount`、`freeCount`、`rate`、`level`（`EMPTY`/`NORMAL`/`BUSY`/`FULL`）、`status`、`parcels` | 需 `shelfmap:view` |
@@ -343,7 +344,7 @@
 | FR-02 | 账号创建（自助注册已取消） | TC-006、TC-007、TC-008、TC-009、TC-API-003、TC-API-004 |
 | FR-03 | 登录状态维护 | TC-010、TC-011、TC-018、TC-API-005、TC-API-006、TC-API-007 |
 | FR-04 | 用户管理 | TC-064、TC-065、TC-066、TC-067、TC-API-035 至 TC-API-038 |
-| FR-05 | 角色管理与权限分配 | TC-068、TC-069、TC-API-041、TC-API-042 |
+| FR-05 | 角色管理与权限分配 | TC-013、TC-015、TC-068、TC-069、TC-API-041、TC-API-042 |
 | FR-06 | 个人中心 | TC-API-039、TC-API-040 |
 | FR-07 | 快件入库登记 | TC-019、TC-020、TC-021、TC-024、TC-API-008 至 TC-API-010 |
 | FR-08 | 货位自动分配 | TC-022、TC-023、TC-025 |
@@ -409,7 +410,7 @@
 4. 涉及修改数据库基线数据的用例（如 TC-004、TC-022、TC-025、TC-065、TC-066、TC-068、TC-090、TC-098）在执行完毕后必须恢复数据，建议在用例执行前后各执行一次基线数据备份与还原。
 5. v1.1 的通知功能未接入真实短信网关，`NotifyService.dispatch` 以写入 `notify_record` 的方式模拟发送。因此通知类用例（TC-074 至 TC-084、TC-API-047 至 TC-API-056）验证的是"通知是否按规则落库、结果与失败原因是否正确、当天是否去重"，而非短信是否真实送达；接入网关后需补充真实发送与运营商回执的验证项。
 6. 通知类用例与逾期类用例涉及"当天"这一时间维度（如 TC-080 的当天去重、TC-081 的待催取数量），跨零点执行会导致结果变化，建议在同一自然日内连续执行并记录执行时间。
-7. **数据范围已在服务层强制收敛（v1.1 修复项）**：v1.1 开发过程中曾发现部分接口的数据范围只在前端限制、后端未强制收敛，具体为：`GET /api/shelves/map` 与 `PUT /api/shelves/recalculate` 不校验驿站归属；`POST /api/notifications/batch-overdue`、`GET /api/notifications/overdue-pending` 与 `GET /api/notifications/page` 仅在入参为空时才取登录用户所属驿站；`GET /api/parcels/overdue/count` 对普通用户（`station_id` 为空）会返回全部驿站的逾期件数。**上述问题均已修复**：货位地图与重算统一走 `ShelfService.resolveStationScope`；通知相关接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口对普通用户改为按本人手机号统计（`countOverdue(stationId, limitPhone)`）。TC-086、TC-087 已按修复后的行为描述，验证方式为"伪造 `stationId` 请求他站数据，断言响应仍只含本驿站记录"。
+7. **数据范围已在服务层强制收敛（v1.1 修复项）**：v1.1 开发过程中曾发现部分接口的数据范围只在前端限制、后端未强制收敛，具体为：`GET /api/shelves/map` 与 `PUT /api/shelves/recalculate` 不校验驿站归属；`POST /api/notifications/batch-overdue`、`GET /api/notifications/overdue-pending` 与 `GET /api/notifications/page` 仅在入参为空时才取登录用户所属驿站；`GET /api/parcels/overdue/count` 曾对未绑定驿站的账号返回全部驿站的逾期件数。**上述问题均已修复**：货位地图与重算统一走 `ShelfService.resolveStationScope`；通知相关接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口与分页接口统一口径（`countOverdue` 对"既非 ADMIN 也非 STAFF"的账号按本人手机号统计，属防御性分支，当前无此类账号）。TC-086、TC-087 已按修复后的行为描述，验证方式为"员工伪造 `stationId` 请求他站数据，断言响应仍只含本驿站记录"。
 
 ### 5.4 测试数据清理与基线还原
 
@@ -421,7 +422,7 @@
 | 2 | 核验 `parcel` 表记录数为 25、`ship_order` 表记录数为 8、`exception_record` 表记录数为 3、`notify_record` 表记录数为 29 | 执行计数查询比对 |
 | 3 | 核验 `notify_record` 的构成：`IN_STORE` 19 条、`OVERDUE` 4 条、`PICKUP_DONE` 5 条、`EXCEPTION` 1 条，其中 `send_status = 'FAILED'` 2 条 | 按 `notify_type`、`send_status` 分组计数比对 |
 | 4 | 核验 `shelf.used_count` 与占用货位的快件数量一致 | 按 `shelf_id` 分组统计 `deleted = 0` 且 `status IN ('IN_STORE','DELIVERING','EXCEPTION')` 的快件数并比对 |
-| 5 | 核验 `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission` 的初始数据未被用例污染 | 比对角色数 3、权限数 43（菜单类 21、按钮类 22）、用户数 5、用户角色关联 5 条、角色权限关联 75 条（ADMIN 43 / STAFF 29 / USER 3） |
+| 5 | 核验 `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission` 的初始数据未被用例污染 | 比对角色数 2（ADMIN、STAFF）、权限数 43（菜单类 21、按钮类 22）、用户数 3（admin / staff01 / staff02）、用户角色关联 3 条、角色权限关联 72 条（ADMIN 43 / STAFF 29） |
 | 6 | 清除测试过程中新增的测试快件、测试用户、测试货位与测试通知 | 全表检索测试标识（如 tester01）应无结果；`notify_record` 条数回到 29 条 |
 
 ---
@@ -433,7 +434,7 @@
 1. 本轮共设计功能测试用例 100 条、接口测试用例 71 条，实际执行 ____ 条，通过 ____ 条，失败 ____ 条，阻塞 ____ 条，用例通过率为 ____%。
 2. 缺陷统计：致命 ____ 个，严重 ____ 个，一般 ____ 个，提示 ____ 个；已修复 ____ 个，遗留 ____ 个。
 3. 核心业务功能（收件登记、取件核销、异常件处理）测试结果为 ____，事务一致性与货位计数经数据库比对 ____ 偏差。
-4. 权限控制测试结果为 ____，三类角色的菜单级与按钮级权限隔离 ____ 有效，未发现越权访问与越权查询。
+4. 权限控制测试结果为 ____，两类登录角色（`ADMIN`、`STAFF`）的菜单级与按钮级权限隔离 ____ 有效，未发现越权访问与越权查询；收件人不设账号，其查件由免登录接口按入参限定。
 5. 结论：系统功能实现与《软件需求规格说明书》《前后端接口契约》____ 一致，达到毕业设计验收标准，可以进入答辩演示与文档整理阶段。
 
 ### 6.2 遗留问题与改进建议（模板）

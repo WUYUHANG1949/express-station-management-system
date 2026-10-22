@@ -58,10 +58,11 @@
 
 ### 1.4 角色与权限
 
-角色编码：`ADMIN`（系统管理员）、`STAFF`（驿站员工）、`USER`（普通用户）。
+角色编码：`ADMIN`（系统管理员）、`STAFF`（驿站员工）。系统只有这两类登录角色；收件人不设账号、不占角色，查件走第 11 节的免登录接口。
 
 权限标识（`perm_code`）清单见 `sql/02_data.sql`。v1.1 权限总数由 35 项增加到 **43 项**，
-其中 ADMIN 43 项（全部）、STAFF 29 项、USER 3 项（`dashboard`、`parcel:list`、`profile`）。
+其中 ADMIN 43 项（全部）、STAFF 29 项（除系统管理与删除类操作外的全部业务权限），
+角色授权合计 **72** 项（43 + 29）。原 `USER`（普通用户）角色的 3 项授权已随该角色一并删除，授权总数由 75 项降为 72 项。
 前端按钮级控制使用 `v-perm="'parcel:export'"` 指令或 `hasPerm('parcel:export')` 方法。
 
 v1.1 新增的 8 项权限：
@@ -139,9 +140,10 @@ v1.1 新增的 8 项权限：
 1. 收件人**不需要账号**：查件走第 11 节的免登录接口 `GET /api/public/pickup-query`，
    输入手机号、取件码或运单号即可；
 2. 系统内账号改由管理员在「用户管理」中通过 `POST /api/users` 创建（见 7.1），
-   三类角色 ADMIN / STAFF / USER 全部保留，可以照常分配；
-3. 保留映射而不直接删除，是为了让老版本前端或书签访问时得到可读的业务提示，而不是 404；
-4. 前端 `/register` 路由已重定向到 `/login`，注册页文件已删除，登录页底部原「还没有账号？立即注册」
+   可分配的角色只有 `ADMIN` 与 `STAFF` 两类（原 `USER` 普通用户角色已彻底移除）；
+3. `AuthService.register()` 方法与 `RegisterDTO` 已删除，接口映射仅为兼容旧前端而保留；
+4. 保留映射而不直接删除，是为了让老版本前端或书签访问时得到可读的业务提示，而不是 404；
+5. 前端 `/register` 路由已重定向到 `/login`，注册页文件已删除，登录页底部原「还没有账号？立即注册」
    改为「收件人查件？**免登录自助查询 →**」。
 
 ### 2.3 退出登录
@@ -299,7 +301,8 @@ v1.1 新增的 8 项权限：
 
 `GET /api/parcels/page?pageNum=1&pageSize=10&waybillNo=&pickupCode=&receiverName=&receiverPhone=&expressCompany=&status=&parcelType=&stationId=&startTime=2026-10-01&endTime=2026-10-07`
 
-所有参数可选。`USER` 角色调用时后端强制只返回 `receiverPhone` 等于本人手机号的快件。
+所有参数可选。数据范围按角色收敛：ADMIN 可指定或查看全部驿站，STAFF 被强制覆盖为本驿站（服务层 `ParcelService.applyDataScope` 实现，前端无法绕过）。
+服务层另保留"既非 ADMIN 也非 STAFF → 只返回 `receiverPhone` 等于本人手机号"的防御性兜底分支，当前无此类账号。
 
 ### 3.6 快件详情
 
@@ -343,7 +346,7 @@ v1.1 新增的 8 项权限：
 | ---- | ---- | ---- | ------ | ---- |
 | `pageNum` | long | 否 | 1 | 页码 |
 | `pageSize` | long | 否 | 10 | 每页条数 |
-| `stationId` | long | 否 | — | 驿站ID；不传且当前用户为员工时强制取本人所属驿站 |
+| `stationId` | long | 否 | — | 驿站ID；当前用户为员工时该参数被**强制覆盖**为本人所属驿站，传他站无效 |
 | `minDays` | Integer | 否 | 1 | 至少逾期天数，小于 1 时按 1 处理 |
 
 权限：`parcel:overdue`。响应 `data` 为分页结构，`list` 元素为 3.4 节的快件对象。
@@ -353,7 +356,7 @@ v1.1 新增的 8 项权限：
 结果按 `DATEDIFF(NOW(), in_time) - overdue_days` 倒序、`in_time` 升序排列。
 `minDays` 用于「逾期 1 天 / 3 天 / 7 天以上」的分层催取。
 
-数据权限：ADMIN 可指定或查看全部驿站；STAFF 强制收敛为本驿站；其他角色强制收敛为本人手机号名下的快件。
+数据权限：ADMIN 可指定或查看全部驿站；STAFF 强制收敛为本驿站（显式传入他站 `stationId` 也会被覆盖）。`ParcelService` 另保留"既非 ADMIN 也非 STAFF → 收敛为本人手机号名下快件"的防御性分支，当前无此类账号。
 
 ### 3.14 逾期未取件数量（v1.1 新增）
 
@@ -364,8 +367,8 @@ v1.1 新增的 8 项权限：
 超出免费保管天数 1 天及以上才算逾期。"恰好用满免费保管天数"的快件不计入逾期，与费用试算口径一致。
 
 数据范围（v1.1 已与 3.13 分页接口统一）：管理员按传入的 `stationId` 统计（为空表示全部驿站）；
-**驿站员工强制收敛为本驿站**；**普通用户强制收敛为本人手机号名下的快件**
-（`ParcelService.countOverdue` 内部按角色决定传 `stationId` 还是 `limitPhone`），
+**驿站员工强制收敛为本驿站**，即使传入他站 `stationId` 也只统计本驿站
+（`ParcelService.countOverdue` 内部按角色决定传 `stationId` 还是 `limitPhone`，其中 `limitPhone` 仅用于"既非 ADMIN 也非 STAFF"的防御性兜底，当前无此类账号），
 因此不会出现"角标数字比列表里能看到的还多"的情况。
 
 ---
@@ -573,6 +576,7 @@ v1.1 新增的 8 项权限：
 | 方法 | 路径 | 说明 | 权限 |
 | ---- | ---- | ---- | ---- |
 | GET | `/api/users/page?pageNum&pageSize&username&realName&phone&status&roleCode&stationId` | 分页 | `system:user:list` |
+| GET | `/api/users/stats` | 账号统计（用户管理页顶部统计卡） | `system:user:list` |
 | POST | `/api/users` | 新增（可指定 `roleIds`、`stationId`） | `system:user:add` |
 | PUT | `/api/users/{id}` | 编辑 | `system:user:edit` |
 | DELETE | `/api/users/{id}` | 逻辑删除 | `system:user:delete` |
@@ -590,6 +594,23 @@ v1.1 新增的 8 项权限：
   "lastLoginTime": "2026-10-07 18:00:00", "createTime": "2026-09-01 10:00:00"
 }
 ```
+
+账号统计（`GET /api/users/stats`，供用户管理页顶部四张统计卡使用，一条 SQL 取回全部计数）：
+```json
+{
+  "total": 3,
+  "adminCount": 1,
+  "staffCount": 2,
+  "enabledCount": 3,
+  "disabledCount": 0,
+  "noStationCount": 1
+}
+```
+
+字段说明：`total` 为账号总数（不含逻辑删除），`adminCount` / `staffCount` 按角色编码统计，
+`enabledCount` / `disabledCount` 按 `status` 统计，`noStationCount` 为 `station_id` 为空的账号数。
+**原 `userCount` 字段已删除**（`USER` 角色取消后该计数恒为 0），页面统计卡相应为
+「账号总数 / 系统管理员 / 驿站员工 / 未绑定驿站」四张。
 
 ### 7.2 角色管理 `/roles`（ADMIN）
 
@@ -693,7 +714,7 @@ v1.1 新增的 8 项权限：
 | 登录 | `/login` | 全部（免登录） | — |
 | 注册（**已下线**，访问即重定向 `/login`） | `/register` | 无独立页面 | — |
 | 首页概览 | `/dashboard` | 全部 | `dashboard` |
-| 快件查询 | `/parcel/list` | 全部（USER 仅本人） | `parcel:list` |
+| 快件查询 | `/parcel/list` | ADMIN / STAFF（员工仅本驿站） | `parcel:list` |
 | 收件登记 | `/parcel/in` | ADMIN / STAFF | `parcel:in` |
 | 取件核销 | `/parcel/pickup` | ADMIN / STAFF | `parcel:pickup` |
 | 寄件查询 | `/ship/list` | ADMIN / STAFF | `ship:list` |
@@ -740,7 +761,7 @@ v1.1 新增的 8 项权限：
 | 货位容量小于已占用 | 1001 | 库位容量不能小于当前已占用的 N 件 |
 | 货位仍有快件 | 1001 | 该货位仍存放有快件，请先转移后再删除 |
 | 非员工角色查询通知记录 | 1001 | 无操作权限，请联系管理员 |
-| 普通用户调用通知记录接口 | 403 | 无操作权限，请联系管理员 |
+| 无 `notify:list` 权限的账号调用通知记录接口 | 403 | 无操作权限，请联系管理员 |
 | Token 过期 | 401 | 登录已过期，请重新登录 |
 | 无权限 | 403 | 无操作权限，请联系管理员 |
 
@@ -770,10 +791,10 @@ v1.1 新增的 8 项权限：
 
 权限：`notify:list`。结果按 `send_time DESC, id DESC` 排序，返回 1.2 节的分页结构。
 
-数据权限：ADMIN 不限；STAFF 在未传 `stationId` 时被强制为本驿站；既非 ADMIN 又无 STAFF 角色时，
-服务层抛出 `1001 无操作权限，请联系管理员`。需要注意调用顺序：`USER` 角色不具备 `notify:list` 权限，
-会先在权限切面被拦截并返回 `403 无操作权限，请联系管理员`，只有在拥有 `notify:list` 但既非 ADMIN 又非 STAFF 的
-自定义角色下才会命中服务层的 `1001` 提示。
+数据权限：ADMIN 不限；STAFF 的 `stationId` 被**无条件覆盖**为本驿站（显式传入他站也只返回本驿站记录）；既非 ADMIN 又无 STAFF 角色时，
+服务层抛出 `1001 无操作权限，请联系管理员`。需要注意调用顺序：缺少 `notify:list` 权限的账号
+（例如在角色权限页撤销了某角色的 `notify:list` 授权）会先在权限切面被拦截并返回 `403 无操作权限，请联系管理员`，
+只有在拥有 `notify:list` 但既非 ADMIN 又非 STAFF 的自定义角色下才会命中服务层的 `1001` 提示。
 
 `data.list` 元素为通知记录对象（见 10.2）。
 
@@ -857,7 +878,7 @@ v1.1 新增的 8 项权限：
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 | ---- | ---- | ---- | ------ | ---- |
-| `stationId` | Long | 否 | — | 驿站ID；为空且当前用户非 ADMIN 时取本人所属驿站 |
+| `stationId` | Long | 否 | — | 驿站ID；当前用户非 ADMIN 时该参数被**强制覆盖**为本人所属驿站 |
 | `minDays` | Integer | 否 | 1 | 至少逾期天数，小于 1 时按 1 处理 |
 
 权限：`notify:send`。响应 `message` 为「本次共发送 N 条催取通知」，`data` 为**实际发送条数**（整数）。

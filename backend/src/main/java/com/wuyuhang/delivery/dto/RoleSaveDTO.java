@@ -18,7 +18,7 @@ import java.util.List;
 public class RoleSaveDTO implements Serializable {
 
     @NotBlank(message = "角色编码不能为空")
-    @Schema(description = "角色编码，如 ADMIN/STAFF/USER")
+    @Schema(description = "角色编码，如 ADMIN / STAFF")
     private String roleCode;
 
     @NotBlank(message = "角色名称不能为空")

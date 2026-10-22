@@ -23,7 +23,7 @@ public class SysRole implements Serializable {
     @Schema(description = "角色ID")
     private Long id;
 
-    @Schema(description = "角色编码：ADMIN/STAFF/USER")
+    @Schema(description = "角色编码：ADMIN（系统管理员）/ STAFF（驿站员工）")
     private String roleCode;
 
     @Schema(description = "角色名称")

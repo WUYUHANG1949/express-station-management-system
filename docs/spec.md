@@ -16,6 +16,10 @@
 > **本次修订**：FR-02 由「用户注册」改写为「账号创建（自助注册已取消）」——系统不开放自助注册，账号一律由管理员创建，
 > 收件人无需账号；FR-30 由「按手机号查询」扩展为「手机号 / 取件码 / 运单号三种入参自助查询」，
 > 并在 6.2 节补充「非手机号查询时手机号打码」这一层隐私保护。修订后功能需求仍为 FR-01~FR-30 共 30 条。
+>
+> **本轮修订（角色收敛）**：彻底移除「普通用户（USER）」角色，系统只保留 `ADMIN`、`STAFF` 两类登录角色，
+> 角色授权总数由 75 项调整为 72 项（ADMIN 43 + STAFF 29），撤销 USER 原有 3 项授权并删除 `user01`、`user02` 两个账号；
+> 角色数据范围由三级收敛为两级。收件人不是系统用户：免登录自助查询即可满足查件需求，因此不设账号、不占角色。
 
 ---
 
@@ -72,7 +76,7 @@
 
 ### 2.1 项目范围
 
-本系统面向单驿站与多驿站混合运营场景。系统的**登录主体**为快递驿站的管理员与员工；收件人不作为登录主体，而是作为**外部服务对象**，通过免登录的自助查询接口获得服务（登录账号对其为可选方式，见 3.4）。系统范围包含以下十四个功能域：
+本系统面向单驿站与多驿站混合运营场景。系统的**登录主体**为快递驿站的管理员与员工；收件人不作为登录主体，而是作为**外部服务对象**，通过免登录的自助查询接口获得服务，因此**不设账号、不占任何角色**（见 3.4）。系统范围包含以下十四个功能域：
 
 | 序号 | 功能域 | 说明 |
 | ---- | ------ | ---- |
@@ -98,7 +102,7 @@
 3. **货位可视化**：为每票在库快件记录存放库位，实时维护 `shelf.used_count`，支持自动分配剩余容量最大的可用货位。
 4. **管理规范化**：异常件从登记到处理形成闭环，逾期保管费按超期天数自动试算并留痕，逾期快件按逾期天数分层催取。
 5. **数据可分析**：提供当日入库量、当日取件量、当日寄件量、在库量、逾期量、异常量、派送中数量、货位使用率等指标与多维度统计图表，并以数据大屏一屏聚合展示。
-6. **权限可控化**：基于 RBAC 模型实现三类角色的菜单级与按钮级权限隔离，普通用户仅能查询本人名下快件。三类角色（ADMIN/STAFF/USER）全部保留，但**登录主体只有系统管理员与驿站员工**；收件人不再是登录主体，USER 账号由管理员按需创建。
+6. **权限可控化**：基于 RBAC 模型实现**两类登录角色**（`ADMIN` 系统管理员、`STAFF` 驿站员工）的菜单级与按钮级权限隔离，数据范围相应分为**两级**：管理员为全部驿站、驿站员工强制为本驿站。收件人不是系统用户，不设账号、不占角色，其"只能看到自己的件"由免登录接口按入参（手机号）天然限定，**不属于角色数据权限**。
 7. **通知可追溯**：到件、催取、取件确认等通知统一落库为通知记录，客服可据此回答"是否通知过、何时通知的、发送是否成功"。
 8. **服务自助化**：收件人**无需注册账号**，即可凭手机号、取件码或运单号自助查询待取快件的取件码，既减少窗口问询量，也避免账号无序增长。
 
@@ -116,15 +120,14 @@
 
 ### 3.1 角色模型
 
-系统采用 RBAC（基于角色的访问控制）模型，表结构由 `sys_user`、`sys_role`、`sys_user_role`、`sys_permission`、`sys_role_permission` 五张表构成。用户与角色为多对多关系，角色与权限为多对多关系。权限记录通过 `perm_type` 区分类型：`MENU` 表示菜单（含 `path` 路由地址与 `icon` 图标），`BUTTON` 表示按钮级操作权限。角色编码固定为三类：
+系统采用 RBAC（基于角色的访问控制）模型，表结构由 `sys_user`、`sys_role`、`sys_user_role`、`sys_permission`、`sys_role_permission` 五张表构成。用户与角色为多对多关系，角色与权限为多对多关系。权限记录通过 `perm_type` 区分类型：`MENU` 表示菜单（含 `path` 路由地址与 `icon` 图标），`BUTTON` 表示按钮级操作权限。角色编码固定为两类：
 
 | role_code | role_name | 说明 |
 | --------- | --------- | ---- |
 | ADMIN | 系统管理员 | 拥有系统全部权限，负责用户、角色、驿站等基础数据维护，并负责创建系统内的全部账号 |
 | STAFF | 驿站员工 | 负责快件入库登记、取件核销、寄件受理、异常件处理等日常业务 |
-| USER | 普通用户 | 由管理员创建的受限账号，可查询本人手机号名下快件的在库与取件状态；收件人无需账号，主入口是免登录自助查询 |
 
-**登录主体的界定**：系统的登录主体为**驿站员工**与**系统管理员**——二者是需要操作数据、有明确权限边界的内部人员，账号由管理员在「用户管理」中创建（系统不开放自助注册）。**收件人**是系统的外部服务对象，而不是登录主体：其日常查件通过免登录接口 `GET /api/public/pickup-query` 完成，不需要也不必须拥有账号。RBAC 三角色（ADMIN/STAFF/USER）仍然保留，其中 USER 仅用于"需要登录查看本人快件"的特殊场景，`user01`、`user02` 两个演示账号即属此类。
+**登录主体的界定**：系统的登录主体为**驿站员工**与**系统管理员**——二者是需要操作数据、有明确权限边界的内部人员，账号由管理员在「用户管理」中创建（系统不开放自助注册）。**收件人**是系统的外部服务对象，而不是登录主体：其日常查件通过免登录接口 `GET /api/public/pickup-query` 完成（手机号 / 8 位取件码 / 运单号三种入参），不需要也不拥有账号，因此**不设账号、不占角色**。RBAC 只有 `ADMIN` 与 `STAFF` 两个角色，两者合计 **72** 项授权（43 + 29），与 `sys_permission` 的 43 项权限数无关（同一权限可被两个角色同时拥有）。
 
 ### 3.2 系统管理员（ADMIN）
 
@@ -132,62 +135,68 @@ ADMIN 的职责是保障系统可用与基础数据准确：维护用户账号�
 
 ### 3.3 驿站员工（STAFF）
 
-STAFF 是系统的主要使用者，其操作范围限定于所属驿站。依据 `02_data.sql` 的权限分配，STAFF 共拥有 **29** 项权限（v1.1 由原先的 21 项增加而来），即除"系统管理"外的全部业务权限，具体包括：首页概览、快件查询、收件登记、取件核销、派送操作、编辑快件、导出台账、查看轨迹、打印取件小票、逾期催取、寄件查询、寄件登记、编辑寄件单、更新寄件状态、异常件查询、异常件登记、异常件处理、查看统计、通知记录、发送通知、货位地图、查看货位地图、数据大屏、个人中心。STAFF 不具备删除快件（`parcel:delete`）、删除寄件单（`ship:delete`）与系统管理相关权限。其数据范围由后端强制收敛为本驿站：查询与统计接口在未指定驿站时自动附加本人 `station_id`，因此无法查看其他驿站的数据。初始账号为 `staff01`（驿站 1）与 `staff02`（驿站 2）。
+STAFF 是系统的主要使用者，其操作范围限定于所属驿站。依据 `02_data.sql` 的权限分配，STAFF 共拥有 **29** 项权限（v1.1 由原先的 21 项增加而来），即除"系统管理"外的全部业务权限，具体包括：首页概览、快件查询、收件登记、取件核销、派送操作、编辑快件、导出台账、查看轨迹、打印取件小票、逾期催取、寄件查询、寄件登记、编辑寄件单、更新寄件状态、异常件查询、异常件登记、异常件处理、查看统计、通知记录、发送通知、货位地图、查看货位地图、数据大屏、个人中心。STAFF 不具备删除快件（`parcel:delete`）、删除寄件单（`ship:delete`）与系统管理相关权限。其数据范围由后端强制收敛为本驿站：查询与统计接口会**无条件覆盖**请求中的 `stationId` 为本人所属 `station_id`（不是"没传才兜底"），因此即使伪造其他驿站的 `stationId` 也无法查看他站数据。初始账号为 `staff01`（驿站 1）与 `staff02`（驿站 2）。
 
-### 3.4 普通用户（USER）
+### 3.4 原「普通用户（USER）」角色已取消
 
-USER 是收件人身份在系统内的**可选**账号形态，而不是收件人的默认入口：自助注册已取消，USER 账号只能由 ADMIN 在「用户管理」中创建并分配 `USER` 角色，示范数据中保留了 `user01`、`user02` 两个演示账号。收件人的主入口是免登录自助查询（见 5.13 与 `GET /api/public/pickup-query`），无需账号即可查到取件码。USER 可访问首页概览、快件查询与个人中心三个菜单，对应权限标识为 `dashboard`、`parcel:list`、`profile`。在调用 `/api/parcels/page` 接口时，后端强制附加过滤条件，仅返回 `receiver_phone` 等于当前用户 `phone` 的快件，从而实现数据层面的越权隔离（数据权限第三级，与收件人是否注册无关）。USER 不可访问收件登记、取件核销、寄件管理、异常件管理、数据统计与系统管理功能。
+早期版本曾设置 `USER`（普通用户）角色，作为"收件人登录后查看本人名下快件"的可选账号形态。该角色在本轮已**彻底移除**，本节相应改为一则取消说明：
+
+1. **取消原因**：收件人查件的真实需求只有"我的件到了吗、取件码是多少"，这一点用免登录自助查询（见 5.13 与 `GET /api/public/pickup-query`，支持手机号 / 8 位取件码 / 运单号三种入参）即可满足。既不需要账号，也就不需要为其单独维护一个角色和一套账号体系；保留 `USER` 只会带来账号增长、权限矩阵与数据范围口径的额外复杂度。
+2. **数据库层**：`sql/02_data.sql` 中 `sys_role` 只保留 `ADMIN`、`STAFF` 两行；`sys_role_permission` 中 `USER` 原有的 3 条授权（`dashboard`、`parcel:list`、`profile`）已删除，角色授权总数为 **72** = 43（ADMIN）+ 29（STAFF）；`sys_user` 只保留 `admin`、`staff01`、`staff02` 三个账号，`sys_user_role` 为 3 条关联。
+3. **代码层**：`RoleCode` 枚举只保留 `ADMIN`、`STAFF`，`RoleService.BUILT_IN_ROLES` 同步收缩为两者；`AuthService.register()` 方法与 `RegisterDTO` 已删除（自助注册早已关闭），不再存在"注册即绑定 `USER` 角色"的逻辑。
+4. **数据范围**：由**三级**收敛为**两级**——管理员为全部驿站，驿站员工强制为本驿站。收件人"只能看到自己的件"不再由角色实现，而是由免登录接口按入参（手机号）天然限定，**不属于角色数据权限**。
+5. **防御性设计**：`ParcelService.applyDataScope` 仍保留"既非管理员也非员工 → 按本人手机号收敛"的兜底分支。当前系统中不存在任何此类账号，该分支仅为防御性设计：若将来新增自定义角色，默认只能看本人手机号名下的快件，不会因漏配权限而放开全部数据。**不应将其理解为第三级角色数据权限**。
 
 ### 3.5 权限矩阵
 
-下表列出各功能模块与三类角色的访问关系，"√"表示允许，"×"表示拒绝。权限标识取自 `sys_permission.perm_code`。
+下表列出各功能模块与两类角色（`ADMIN`、`STAFF`）的访问关系，"√"表示允许，"×"表示拒绝。表中不出现"收件人"一行：收件人不是登录角色，其查件通过末尾的免登录自助查询完成。权限标识取自 `sys_permission.perm_code`。
 
-| 功能模块 | 页面路由 | 权限标识 | ADMIN | STAFF | USER |
-| -------- | -------- | -------- | :---: | :---: | :--: |
-| 登录（自助注册已关闭，`/register` 重定向登录页） | `/login` | — | √ | √ | √（仅管理员创建的账号） |
-| 首页概览 | `/dashboard` | `dashboard` | √ | √ | √ |
-| 快件查询 | `/parcel/list` | `parcel:list` | √ | √ | √（仅本人） |
-| 收件登记 | `/parcel/in` | `parcel:in` | √ | √ | × |
-| 取件核销 | `/parcel/pickup` | `parcel:pickup` | √ | √ | × |
-| 派送操作 | — | `parcel:deliver` | √ | √ | × |
-| 编辑快件 | — | `parcel:edit` | √ | √ | × |
-| 删除快件 | — | `parcel:delete` | √ | × | × |
-| 导出台账 | — | `parcel:export` | √ | √ | × |
-| 查看轨迹 | — | `parcel:trace` | √ | √ | × |
-| 寄件查询 | `/ship/list` | `ship:list` | √ | √ | × |
-| 寄件登记 | — | `ship:add` | √ | √ | × |
-| 编辑寄件单 | — | `ship:edit` | √ | √ | × |
-| 删除寄件单 | — | `ship:delete` | √ | × | × |
-| 更新寄件状态 | — | `ship:status` | √ | √ | × |
-| 异常件查询 | `/exception/list` | `exception:list` | √ | √ | × |
-| 异常件登记 | — | `exception:add` | √ | √ | × |
-| 异常件处理 | — | `exception:handle` | √ | √ | × |
-| 逾期催取 | `/parcel/overdue` | `parcel:overdue` | √ | √ | × |
-| 打印取件小票 | — | `parcel:print` | √ | √ | × |
-| 通知管理 | `/notify` | `notify` | √ | √ | × |
-| 通知记录 | `/notify/list` | `notify:list` | √ | √ | × |
-| 发送通知 | — | `notify:send` | √ | √ | × |
-| 货位地图 | `/shelf-map` | `shelfmap` | √ | √ | × |
-| 查看货位地图 | — | `shelfmap:view` | √ | √ | × |
-| 数据大屏 | `/screen` | `screen` | √ | √ | × |
-| 查看统计 | `/stats` | `stats:view` | √ | √ | × |
-| 用户管理 | `/system/user` | `system:user:list` | √ | × | × |
-| 新增用户 | — | `system:user:add` | √ | × | × |
-| 编辑用户 | — | `system:user:edit` | √ | × | × |
-| 删除用户 | — | `system:user:delete` | √ | × | × |
-| 重置密码 | — | `system:user:reset` | √ | × | × |
-| 角色权限 | `/system/role` | `system:role:list` | √ | × | × |
-| 分配权限 | — | `system:role:assign` | √ | × | × |
-| 驿站管理 | `/system/station` | `system:station:list` | √ | × | × |
-| 编辑驿站 | — | `system:station:edit` | √ | × | × |
-| 货位管理 | `/system/shelf` | `system:shelf:list` | √ | × | × |
-| 编辑货位 | — | `system:shelf:edit` | √ | × | × |
-| 个人中心 | `/profile` | `profile` | √ | √ | √ |
-| 取件码自助查询 | `/query` | 无需权限（免登录） | √ | √ | √ |
+| 功能模块 | 页面路由 | 权限标识 | ADMIN | STAFF |
+| -------- | -------- | -------- | :---: | :---: |
+| 登录（自助注册已关闭，`/register` 重定向登录页） | `/login` | — | √ | √ |
+| 首页概览 | `/dashboard` | `dashboard` | √ | √ |
+| 快件查询 | `/parcel/list` | `parcel:list` | √ | √ |
+| 收件登记 | `/parcel/in` | `parcel:in` | √ | √ |
+| 取件核销 | `/parcel/pickup` | `parcel:pickup` | √ | √ |
+| 派送操作 | — | `parcel:deliver` | √ | √ |
+| 编辑快件 | — | `parcel:edit` | √ | √ |
+| 删除快件 | — | `parcel:delete` | √ | × |
+| 导出台账 | — | `parcel:export` | √ | √ |
+| 查看轨迹 | — | `parcel:trace` | √ | √ |
+| 寄件查询 | `/ship/list` | `ship:list` | √ | √ |
+| 寄件登记 | — | `ship:add` | √ | √ |
+| 编辑寄件单 | — | `ship:edit` | √ | √ |
+| 删除寄件单 | — | `ship:delete` | √ | × |
+| 更新寄件状态 | — | `ship:status` | √ | √ |
+| 异常件查询 | `/exception/list` | `exception:list` | √ | √ |
+| 异常件登记 | — | `exception:add` | √ | √ |
+| 异常件处理 | — | `exception:handle` | √ | √ |
+| 逾期催取 | `/parcel/overdue` | `parcel:overdue` | √ | √ |
+| 打印取件小票 | — | `parcel:print` | √ | √ |
+| 通知管理 | `/notify` | `notify` | √ | √ |
+| 通知记录 | `/notify/list` | `notify:list` | √ | √ |
+| 发送通知 | — | `notify:send` | √ | √ |
+| 货位地图 | `/shelf-map` | `shelfmap` | √ | √ |
+| 查看货位地图 | — | `shelfmap:view` | √ | √ |
+| 数据大屏 | `/screen` | `screen` | √ | √ |
+| 查看统计 | `/stats` | `stats:view` | √ | √ |
+| 用户管理 | `/system/user` | `system:user:list` | √ | × |
+| 新增用户 | — | `system:user:add` | √ | × |
+| 编辑用户 | — | `system:user:edit` | √ | × |
+| 删除用户 | — | `system:user:delete` | √ | × |
+| 重置密码 | — | `system:user:reset` | √ | × |
+| 角色权限 | `/system/role` | `system:role:list` | √ | × |
+| 分配权限 | — | `system:role:assign` | √ | × |
+| 驿站管理 | `/system/station` | `system:station:list` | √ | × |
+| 编辑驿站 | — | `system:station:edit` | √ | × |
+| 货位管理 | `/system/shelf` | `system:shelf:list` | √ | × |
+| 编辑货位 | — | `system:shelf:edit` | √ | × |
+| 个人中心 | `/profile` | `profile` | √ | √ |
+| 取件码自助查询 | `/query` | 无需权限（免登录） | √ | √ |
 
 权限校验规则：后端在受保护接口上校验当前令牌所携带的权限集合，校验不通过返回 `code = 403`、`message = 无操作权限，请联系管理员`；未携带令牌或令牌失效返回 `code = 401`、`message = 登录已过期，请重新登录`。前端依据登录后返回的 `permissions` 数组渲染菜单，并通过 `v-perm="'parcel:export'"` 指令或 `hasPerm('parcel:export')` 方法控制按钮显示。
 
-需要说明两点：一是 `GET /api/notifications/parcel/{parcelId}` 使用 `@RequiresPermission({"notify:list", "parcel:list"})`，注解默认按 **AND** 语义校验，即需同时具备 `notify:list` 与 `parcel:list`（ADMIN 与 STAFF 均同时具备这两项）；二是权限总数在 v1.1 由 35 项增加到 **43 项**，其中 ADMIN 43 项、STAFF 29 项、USER 3 项。
+需要说明两点：一是 `GET /api/notifications/parcel/{parcelId}` 使用 `@RequiresPermission({"notify:list", "parcel:list"})`，注解默认按 **AND** 语义校验，即需同时具备 `notify:list` 与 `parcel:list`（ADMIN 与 STAFF 均同时具备这两项）；二是权限总数在 v1.1 由 35 项增加到 **43 项**，其中 ADMIN 43 项、STAFF 29 项，两个角色的授权合计为 **72** 项（注销原 USER 角色的 3 项授权后由 75 项变为 72 项）。
 
 ---
 
@@ -362,9 +371,9 @@ flowchart TD
 | ---- | ---- |
 | 需求编号 | FR-02 |
 | 需求名称 | 账号创建（自助注册已取消） |
-| 需求描述 | 系统不开放自助注册：系统内账号（含 USER）统一由系统管理员在「用户管理」中创建并分配角色；收件人无需账号，直接使用免登录自助查询获得服务。 |
+| 需求描述 | 系统不开放自助注册：系统内账号统一由系统管理员在「用户管理」中创建，可分配的角色只有 `ADMIN`（系统管理员）与 `STAFF`（驿站员工）两类；收件人无需账号，直接使用免登录自助查询获得服务。 |
 | 输入 | `POST /api/auth/register`（已下线，仅为兼容旧前端而保留映射，无请求体要求）；`POST /api/users`（管理员创建账号，请求体含 `username`、`password`、`realName`、`phone`、`gender`、`stationId`、`roleIds`）。 |
-| 处理 | `POST /api/auth/register` 不再校验入参、不再写库，直接抛出业务异常；账号创建改由管理员调用 `POST /api/users` 完成：校验用户名唯一、使用 BCrypt 加密密码、写入 `sys_user`（`status = 1`、`gender = 0`），并按 `roleIds` 写入 `sys_user_role` 完成角色分配。前端登录页不再提供注册入口，`/register` 路由重定向到 `/login`，原注册页文件已删除。 |
+| 处理 | `POST /api/auth/register` 不再校验入参、不再写库，直接抛出业务异常；账号创建改由管理员调用 `POST /api/users` 完成：校验用户名唯一、使用 BCrypt 加密密码、写入 `sys_user`（`status = 1`、`gender = 0`），并按 `roleIds` 写入 `sys_user_role` 完成角色分配（`roleIds` 只能取 `ADMIN`、`STAFF` 两个角色）。原 `AuthService.register()` 方法与 `RegisterDTO` 已删除，`/api/auth/register` 仅保留一个固定抛出业务异常的空映射。前端登录页不再提供注册入口，`/register` 路由重定向到 `/login`，原注册页文件已删除。 |
 | 输出 | `POST /api/auth/register` 固定返回 `code = 1001`、`message = 自助注册已关闭：收件人无需账号，请直接使用自助查询；系统内账号请联系管理员创建`，且不产生任何数据变更；`POST /api/users` 成功返回 `code = 200` 与新用户标识，用户名重复返回 `code = 1001`、提示"该用户名已被注册"。 |
 | 优先级 | 高 |
 
@@ -384,10 +393,10 @@ flowchart TD
 | ---- | ---- |
 | 需求编号 | FR-04 |
 | 需求名称 | 用户管理 |
-| 需求描述 | 管理员对系统用户进行分页查询、新增、编辑、逻辑删除、启用禁用与重置密码。 |
-| 输入 | `GET /api/users/page?pageNum&pageSize&username&realName&phone&status&roleCode&stationId`；`POST /api/users`（可指定 `roleIds`、`stationId`）；`PUT /api/users/{id}`；`DELETE /api/users/{id}`；`PUT /api/users/{id}/status?status=0`；`PUT /api/users/{id}/password?password=123456`。 |
-| 处理 | 分页查询按条件动态拼接；新增时校验用户名唯一并对密码进行 BCrypt 加密，同时写入角色关联；编辑时更新基本信息并按需重置角色关联；删除为逻辑删除（`deleted = 1`）；启用禁用更新 `status`；重置密码写入加密后的新密码。 |
-| 输出 | 分页响应的 `data` 含 `total`、`pages`、`pageNum`、`pageSize`、`list`，记录含 `id`、`username`、`realName`、`phone`、`gender`、`avatar`、`stationId`、`stationName`、`status`、`roleIds`、`roleNames`、`lastLoginTime`、`createTime`。无权限时 `code = 403`。 |
+| 需求描述 | 管理员对系统用户进行分页查询、新增、编辑、逻辑删除、启用禁用与重置密码；新增与编辑时可分配的角色固定为 `ADMIN` 与 `STAFF` 两类，不存在"分配普通用户角色"的操作。 |
+| 输入 | `GET /api/users/page?pageNum&pageSize&username&realName&phone&status&roleCode&stationId`；`GET /api/users/stats`；`POST /api/users`（可指定 `roleIds`、`stationId`）；`PUT /api/users/{id}`；`DELETE /api/users/{id}`；`PUT /api/users/{id}/status?status=0`；`PUT /api/users/{id}/password?password=123456`。 |
+| 处理 | 分页查询按条件动态拼接；新增时校验用户名唯一并对密码进行 BCrypt 加密，同时写入角色关联；编辑时更新基本信息并按需重置角色关联；删除为逻辑删除（`deleted = 1`）；启用禁用更新 `status`；重置密码写入加密后的新密码。账号统计由一条 SQL 的多个标量子查询一次取回。 |
+| 输出 | 分页响应的 `data` 含 `total`、`pages`、`pageNum`、`pageSize`、`list`，记录含 `id`、`username`、`realName`、`phone`、`gender`、`avatar`、`stationId`、`stationName`、`status`、`roleIds`、`roleNames`、`lastLoginTime`、`createTime`；统计接口返回 `total`、`adminCount`、`staffCount`、`enabledCount`、`disabledCount`、`noStationCount` 六个字段（不再有 `userCount`），页面据此展示「账号总数 / 系统管理员 / 驿站员工 / 未绑定驿站」四张统计卡。无权限时 `code = 403`。 |
 | 优先级 | 高 |
 
 | 项目 | 内容 |
@@ -450,7 +459,7 @@ flowchart TD
 | 需求名称 | 快件分页条件查询 |
 | 需求描述 | 按运单号、取件码、收件人姓名、收件人手机号、快递公司、状态、快件类型、驿站与时间区间组合查询快件。 |
 | 输入 | `GET /api/parcels/page?pageNum=1&pageSize=10&waybillNo=&pickupCode=&receiverName=&receiverPhone=&expressCompany=&status=&parcelType=&stationId=&startTime=&endTime=`，全部参数可选。 |
-| 处理 | 动态拼接查询条件；运单号、取件码支持精确匹配，收件人姓名支持模糊匹配；`startTime`、`endTime` 作用于 `in_time` 区间；`USER` 角色调用时后端强制附加 `receiver_phone` 等于当前用户手机号的条件。 |
+| 处理 | 动态拼接查询条件；运单号、取件码支持精确匹配，收件人姓名支持模糊匹配；`startTime`、`endTime` 作用于 `in_time` 区间。数据范围按角色收敛（管理员为全部驿站、驿站员工强制为本驿站），由 `ParcelService.applyDataScope` 统一注入且前端无法绕过；该方法另保留一条"既非 ADMIN 也非 STAFF → 按本人手机号收敛"的防御性兜底分支，当前不存在符合条件的账号。 |
 | 输出 | 分页响应，`list` 中每项为快件对象，含 `stationName`、`shelfCode`、`parcelTypeName`、`statusName`、`storageDays`、`overdueFee` 等派生字段。 |
 | 优先级 | 高 |
 
@@ -634,7 +643,7 @@ flowchart TD
 | 需求名称 | 逾期催取 |
 | 需求描述 | 提供逾期未取快件的分层查询能力，并支持按驿站批量发送催取通知，同一快件当天不重复发送。 |
 | 输入 | 逾期件分页 `GET /api/parcels/overdue/page?pageNum&pageSize&stationId&minDays`（需 `parcel:overdue`）；逾期件数量 `GET /api/parcels/overdue/count?stationId`（需 `parcel:list`）；批量催取 `POST /api/notifications/batch-overdue?stationId&minDays`（需 `notify:send`）；待催取数量 `GET /api/notifications/overdue-pending?stationId`（需 `notify:list`）。 |
-| 处理 | 逾期判定口径为「已保管天数超过免费保管天数，且超出部分不少于 `minDays` 天」（`minDays` 小于 1 时按 1 处理），结果按逾期天数倒序排列，用于"逾期 1 天 / 3 天 / 7 天以上"的分层催取。批量催取单次最多处理 50 件，逐条判断该快件当天是否已发送过 `OVERDUE` 通知，已发送的跳过。数据权限方面：逾期件分页接口中，ADMIN 可指定或查看全部驿站、STAFF 强制收敛为本驿站、普通用户强制收敛为本人手机号名下的快件；批量催取与待催取数量接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口同样按角色收敛（普通用户按本人手机号统计），与分页接口口径完全一致。 |
+| 处理 | 逾期判定口径为「已保管天数超过免费保管天数，且超出部分不少于 `minDays` 天」（`minDays` 小于 1 时按 1 处理），结果按逾期天数倒序排列，用于"逾期 1 天 / 3 天 / 7 天以上"的分层催取。批量催取单次最多处理 50 件，逐条判断该快件当天是否已发送过 `OVERDUE` 通知，已发送的跳过。数据权限方面：逾期件分页接口中，ADMIN 可指定或查看全部驿站、STAFF 强制收敛为本驿站；批量催取与待催取数量接口对非管理员一律强制覆盖为本人所属驿站；逾期件数量接口与分页接口口径完全一致。`ParcelService` 另保留"既非 ADMIN 也非 STAFF → 按本人手机号收敛"的防御性分支，当前无此类账号。 |
 | 输出 | 逾期件分页返回快件对象列表，附带 `storageDays`、`overdueDayCount`、`overdueFee` 等派生字段；批量催取返回实际发送条数，`message` 为"本次共发送 N 条催取通知"；数量接口返回整数。 |
 | 优先级 | 高 |
 
@@ -694,7 +703,7 @@ flowchart TD
 1. **密码加密**：`sys_user.password` 字段长度为 `VARCHAR(100)`，密码一律使用 BCrypt 算法加密后存储，数据库中不出现明文密码，初始账号密码亦以 `$2a$10$` 开头的密文形式写入。
 2. **身份认证**：登录成功后签发 JWT 令牌，令牌有效期 `expiresIn = 86400` 秒，前端存储于 localStorage 的 `es_token`，后续请求统一在请求头携带 `Authorization: Bearer <token>`。令牌缺失、格式错误、签名不合法或已过期时，后端返回 `code = 401`、`message = 登录已过期，请重新登录`，前端清除令牌并跳转登录页。
 3. **接口鉴权**：除 `/api/auth/login`、`/api/auth/register` 等免登录接口外，其余接口均需通过令牌校验；涉及具体操作的能力点须通过 `perm_code` 校验，未授权返回 `code = 403`、`message = 无操作权限，请联系管理员`。
-4. **数据越权防护**：`USER` 角色调用快件分页查询接口时，后端强制以当前登录用户的 `phone` 过滤 `receiver_phone`，即使请求参数携带他人手机号也不返回他人数据。
+4. **数据越权防护**：查询与统计接口在服务层强制收敛数据范围——管理员为全部驿站，驿站员工即使伪造 `stationId` 也只返回本驿站数据，且该收敛在服务端完成、不依赖前端传参。服务层另保留"既非 ADMIN 也非 STAFF → 按当前登录用户 `phone` 过滤 `receiver_phone`"的防御性兜底分支（当前无此类账号），保证将来新增自定义角色时默认不会越权。收件人的"只看自己的件"由免登录接口按入参手机号天然限定，不依赖角色。
 5. **参数校验**：请求参数统一校验，校验不通过返回 `code = 400`；业务规则不满足返回 `code = 1001` 并给出可直接展示的中文提示。
 6. **SQL 注入与 XSS 防护**：持久层使用 MyBatis-Plus 参数化查询，禁止字符串拼接 SQL；前端对用户输入内容进行转义展示。
 7. **异常信息保护**：服务端异常统一由全局异常处理器捕获，返回 `code = 500` 与通用提示，不向前端暴露堆栈信息与数据库结构。
@@ -760,7 +769,7 @@ flowchart TD
 
 1. 后端基础地址为 `http://localhost:8080/api`，所有业务接口均在该前缀下提供。
 2. 统一响应体为 `{ code, message, data }`，业务成功时 `code = 200`。
-3. 初始化环境时依次执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，脚本执行完成后可使用 `admin`、`staff01`、`staff02`、`user01`、`user02` 五个演示账号登录，初始密码统一为 `123456`。
+3. 初始化环境时依次执行 `sql/01_schema.sql` 与 `sql/02_data.sql`，脚本执行完成后可使用 `admin`、`staff01`、`staff02` 三个演示账号登录，初始密码统一为 `123456`。系统只有系统管理员与驿站员工两类登录角色（`sys_role` 两行、角色授权 72 条），收件人不设账号，查件走 `/api/public/pickup-query`。
 
 ---
 
@@ -826,7 +835,7 @@ flowchart TD
 | 备选流程 A | 异常类型为 `TIMEOUT`（长期未取）：员工在异常描述中记录联系收件人的情况，若最终办理退回则处理时传入 `parcelStatus = 'RETURNED'` |
 | 备选流程 B | 异常类型为 `ADDRESS_ERROR`：员工核实地址后由收件人自取，处理时将 `handleStatus` 置为 `RESOLVED` 并将快件状态恢复为 `IN_STORE` |
 | 异常流程 A | 快件标识无效：返回 `code = 404`，提示资源不存在，不写入异常记录 |
-| 异常流程 B | 无 `exception:handle` 权限（如 `USER` 角色调用）：返回 `code = 403`，提示"无操作权限，请联系管理员" |
+| 异常流程 B | 无 `exception:handle` 权限（例如在角色权限页撤销 STAFF 角色的 `exception:handle` 授权后由员工调用）：返回 `code = 403`，提示"无操作权限，请联系管理员" |
 | 业务规则 | 1. 同一快件允许登记多条异常记录，按时间倒序展示；2. 异常登记必须同时改变快件状态并留痕，保证异常与状态一致；3. `handle_status` 为 `RESOLVED` 时必须填写处理结果；4. 处理人与处理时间由系统依据当前登录用户与服务器时间自动写入；5. 异常件处理不影响取件记录的生成，异常件在状态恢复为 `IN_STORE` 后仍可正常核销 |
 
 ### 8.4 用例 UC-04：逾期件批量催取（v1.1 新增）
@@ -847,5 +856,5 @@ flowchart TD
 | 备选流程 C | 逾期件已超过 50 件：单次批量操作最多处理 50 件，员工可稍后再次发起，剩余快件在下一批次中处理 |
 | 异常流程 A | 该快件当天已发送过 `OVERDUE` 通知：直接跳过，不写入新记录，也不计入返回条数，避免重复骚扰客户 |
 | 异常流程 B | 收件人手机号为空或不合法：仍写入通知记录，但 `send_status = 'FAILED'` 且填写 `fail_reason`，便于客服改用电话联系 |
-| 异常流程 C | 无 `notify:send` 权限（如 `USER` 角色调用）：返回 `code = 403`、`message = 无操作权限，请联系管理员` |
+| 异常流程 C | 无 `notify:send` 权限（例如在角色权限页撤销 STAFF 角色的 `notify:send` 授权后由员工调用）：返回 `code = 403`、`message = 无操作权限，请联系管理员` |
 | 业务规则 | 1. 逾期判定口径为「已保管天数超过免费保管天数，且超出部分不少于 `minDays` 天」；2. 同一快件当天最多发送一条 `OVERDUE` 通知（按 `parcel_id`、`notify_type` 与发送日期判定）；3. 批量催取固定使用 `SMS` 渠道与系统模板文案；4. 催取只写通知记录，不改变快件状态、不释放货位；5. 单次批量处理上限为 50 件 |

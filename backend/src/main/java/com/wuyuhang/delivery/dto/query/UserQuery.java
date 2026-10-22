@@ -26,7 +26,7 @@ public class UserQuery implements Serializable {
     @Schema(description = "账号状态：1 正常 0 禁用")
     private Integer status;
 
-    @Schema(description = "角色编码：ADMIN/STAFF/USER")
+    @Schema(description = "角色编码：ADMIN / STAFF")
     private String roleCode;
 
     @Schema(description = "所属驿站ID")

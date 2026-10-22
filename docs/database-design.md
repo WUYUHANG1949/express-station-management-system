@@ -112,7 +112,7 @@ erDiagram
 
     sys_role {
         BIGINT id PK "角色主键"
-        VARCHAR role_code UK "ADMIN/STAFF/USER"
+        VARCHAR role_code UK "ADMIN/STAFF"
         VARCHAR role_name "角色名称"
         TINYINT status "状态"
     }
@@ -278,7 +278,7 @@ erDiagram
 
 ### 3.1 用户表 `sys_user`
 
-系统管理员、驿站员工与普通用户三类角色共用一张用户表，通过角色关联区分身份。
+系统管理员与驿站员工两类登录角色共用一张用户表，通过角色关联区分身份。收件人不是系统用户：不设账号、不占角色，查件走免登录自助查询接口（原「普通用户」角色已取消）。
 
 | 字段名 | 数据类型 | 长度 | 是否为空 | 默认值 | 键 | 说明 |
 | ------ | -------- | ---- | -------- | ------ | -- | ---- |
@@ -296,19 +296,21 @@ erDiagram
 | update_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | | 更新时间 |
 | deleted | TINYINT | — | NOT NULL | 0 | | 逻辑删除：0 未删除 1 已删除 |
 
+初始化数据共 **3** 个账号（原 5 个账号中的 `user01`、`user02` 已随 `USER` 角色删除）：`admin`（系统管理员，`station_id` 为空）、`staff01`（驿站 1 员工）、`staff02`（驿站 2 员工），密码统一为 `123456` 的 BCrypt 密文。
+
 ### 3.2 角色表 `sys_role`
 
 | 字段名 | 数据类型 | 长度 | 是否为空 | 默认值 | 键 | 说明 |
 | ------ | -------- | ---- | -------- | ------ | -- | ---- |
 | id | BIGINT | — | NOT NULL | AUTO_INCREMENT | PK | 角色主键 |
-| role_code | VARCHAR | 50 | NOT NULL | — | UK `uk_role_code` | 角色编码：ADMIN/STAFF/USER |
+| role_code | VARCHAR | 50 | NOT NULL | — | UK `uk_role_code` | 角色编码：ADMIN/STAFF |
 | role_name | VARCHAR | 50 | NOT NULL | — | | 角色名称 |
 | description | VARCHAR | 255 | NULL | NULL | | 角色描述 |
 | sort | INT | — | NOT NULL | 0 | | 排序号 |
 | status | TINYINT | — | NOT NULL | 1 | | 状态：1 启用 0 停用 |
 | create_time | DATETIME | — | NOT NULL | CURRENT_TIMESTAMP | | 创建时间 |
 
-初始化数据：`ADMIN` 系统管理员、`STAFF` 驿站员工、`USER` 普通用户，排序号分别为 1、2、3，状态均为启用。
+初始化数据：共 **2** 个角色，`ADMIN` 系统管理员（role_id = 1）与 `STAFF` 驿站员工（role_id = 2），排序号分别为 1、2，状态均为启用。原 `USER`（普通用户）角色已从初始化脚本中删除，其 `(3, 1)`、`(3, 11)`、`(3, 70)` 三条授权一并删除。
 
 ### 3.3 用户角色关联表 `sys_user_role`
 
@@ -318,7 +320,7 @@ erDiagram
 | user_id | BIGINT | — | NOT NULL | — | UK `uk_user_role` 联合列 | 用户ID |
 | role_id | BIGINT | — | NOT NULL | — | UK `uk_user_role` 联合列；IDX `idx_ur_role` | 角色ID |
 
-唯一索引 `uk_user_role(user_id, role_id)` 保证同一用户对同一角色不重复授权。`idx_ur_role(role_id)` 支持按角色反查用户。
+唯一索引 `uk_user_role(user_id, role_id)` 保证同一用户对同一角色不重复授权。`idx_ur_role(role_id)` 支持按角色反查用户。初始化数据共 **3** 条关联：(1, 1) admin → ADMIN、(2, 2) staff01 → STAFF、(3, 2) staff02 → STAFF。
 
 ### 3.4 权限表 `sys_permission`
 
@@ -349,7 +351,7 @@ v1.1 新增的 8 条权限为：`19 / parcel:overdue` 逾期催取（MENU，挂�
 | role_id | BIGINT | — | NOT NULL | — | UK `uk_role_perm` 联合列 | 角色ID |
 | perm_id | BIGINT | — | NOT NULL | — | UK `uk_role_perm` 联合列；IDX `idx_rp_perm` | 权限ID |
 
-权限分配初始化规则：`ADMIN`（role_id = 1）拥有全部 43 条权限；`STAFF`（role_id = 2）拥有除系统管理与删除快件、删除寄件单之外的全部业务权限，共 **29** 条，具体权限 id 集合为 1、10、11、12、13、14、15、17、18、19、102、20、21、22、23、25、30、31、32、33、40、41、80、81、82、90、91、110、70；`USER`（role_id = 3）仅拥有首页概览、快件查询与个人中心三项权限，对应权限 id 为 1、11、70。
+权限分配初始化规则：系统只有 2 个角色、角色授权合计 **72** 条。`ADMIN`（role_id = 1）拥有全部 43 条权限；`STAFF`（role_id = 2）拥有除系统管理与删除快件、删除寄件单之外的全部业务权限，共 **29** 条，具体权限 id 集合为 1、10、11、12、13、14、15、17、18、19、102、20、21、22、23、25、30、31、32、33、40、41、80、81、82、90、91、110、70。原 `USER`（role_id = 3）角色的三条授权（权限 id 1、11、70）已随角色删除，因此授权总数由 75 条降为 72 条。
 
 v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为 `parcel:overdue`（19）、`parcel:print`（102）、`notify`（80）、`notify:list`（81）、`notify:send`（82）、`shelfmap`（90）、`shelfmap:view`（91）、`screen`（110）。
 
@@ -565,11 +567,11 @@ v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为
 | ---- | ------ | ---- | ------ | -------- |
 | sys_user | PRIMARY | 主键 | id | 主键索引，支持按用户主键定位 |
 | sys_user | uk_user_username | 唯一 | username | 登录账号必须唯一，登录查询与注册唯一性校验均走该索引；同时防止重复注册 |
-| sys_user | idx_user_phone | 普通 | phone | 支持按手机号检索用户；`USER` 角色快件查询需依据本人手机号过滤，用户信息加载频繁 |
+| sys_user | idx_user_phone | 普通 | phone | 支持按手机号检索用户；服务层对"既非 ADMIN 也非 STAFF"的账号按本人手机号收敛快件查询（防御性分支），用户信息加载频繁 |
 | sys_user | idx_user_station | 普通 | station_id | 支持按驿站筛选员工，用于员工列表与管理员按站点管理账号 |
 | sys_user | idx_user_status | 普通 | status | 支持筛选启用/禁用账号，登录时校验账号状态亦可用该索引 |
 | sys_role | PRIMARY | 主键 | id | 主键索引 |
-| sys_role | uk_role_code | 唯一 | role_code | 角色编码 `ADMIN`/`STAFF`/`USER` 必须唯一，鉴权时按编码定位角色 |
+| sys_role | uk_role_code | 唯一 | role_code | 角色编码 `ADMIN`/`STAFF` 必须唯一，鉴权时按编码定位角色 |
 | sys_user_role | PRIMARY | 主键 | id | 主键索引 |
 | sys_user_role | uk_user_role | 唯一 | user_id, role_id | 防止同一用户重复绑定同一角色；按 `user_id` 查询用户角色集合时走最左前缀 |
 | sys_user_role | idx_ur_role | 普通 | role_id | 支持按角色反查用户，用于角色详情页统计与角色删除前的引用检查 |
@@ -588,7 +590,7 @@ v1.1 中 STAFF 的授权项由 21 项增加到 29 项，新增的 8 项分别为
 | parcel | uk_parcel_waybill | 唯一 | waybill_no | 运单号全局唯一，是收件登记查重、详情查询、核销匹配与台账导出的核心检索路径；唯一约束同时从数据库层杜绝重复入库 |
 | parcel | idx_parcel_station_status | 复合 | station_id, status | 覆盖驿站维度的状态统计与列表筛选，是最重要的复合索引 |
 | parcel | idx_parcel_pickup_code | 普通 | pickup_code | 取件核销时按取件码快速定位快件，是窗口作业的关键路径 |
-| parcel | idx_parcel_receiver_phone | 普通 | receiver_phone | 支持按收件人手机号查询快件，也是 `USER` 角色数据越权过滤的执行条件 |
+| parcel | idx_parcel_receiver_phone | 普通 | receiver_phone | 支持按收件人手机号查询快件，也是免登录自助查询（手机号入参）与服务层手机号兜底收敛的执行条件 |
 | parcel | idx_parcel_in_time | 普通 | in_time | 支持入库时间区间筛选与按日趋势统计的范围扫描 |
 | parcel_trace | PRIMARY | 主键 | id | 主键索引 |
 | parcel_trace | idx_trace_parcel | 普通 | parcel_id | 按快件查询轨迹列表是轨迹查看接口的唯一检索条件 |
