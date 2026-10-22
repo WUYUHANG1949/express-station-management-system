@@ -71,6 +71,13 @@
             />
           </el-form-item>
 
+          <!-- 忘记密码：内部系统的账号由管理员创建，不提供自助找回，这里给出明确指引 -->
+          <div class="login__assist">
+            <el-link type="primary" :underline="false" @click="forgotVisible = true">
+              忘记密码？
+            </el-link>
+          </div>
+
           <el-form-item>
             <el-button
               type="primary"
@@ -121,6 +128,42 @@
       <p class="login__copyright">© 2026 快件收发管理系统 · 毕业设计作品</p>
       <p class="login__stack">Vue 3 + Element Plus · Spring Boot 3 + MyBatis-Plus</p>
     </div>
+
+    <!--
+      忘记密码说明弹窗
+      设计取舍：系统不开放自助找回，因为
+        ① 账号是内部人员账号，由管理员创建，管理员本来就有「重置密码」功能；
+        ② 项目未接入真实短信/邮件网关（通知模块为记录表模拟），
+           若做手机号验证码找回，验证码只能是假的，反而带来安全风险；
+        ③ 自助找回若只凭用户名，任何知道用户名的人都能重置他人密码。
+      因此这里给出明确指引，而不是做一个不安全的"假找回"。
+    -->
+    <el-dialog
+      v-model="forgotVisible"
+      title="忘记密码怎么办"
+      width="480px"
+      class="forgot-dialog"
+      append-to-body
+    >
+      <div class="forgot">
+        <div class="forgot__item">
+          <span class="forgot__tag forgot__tag--staff">驿站员工</span>
+          <p>请联系<b>系统管理员</b>，在「系统管理 → 用户管理」中找到你的账号，点击<b>重置密码</b>即可。</p>
+        </div>
+        <div class="forgot__item">
+          <span class="forgot__tag forgot__tag--admin">系统管理员</span>
+          <p>请联系系统的<b>部署维护人员</b>处理（管理员账号拥有全部权限，不提供自助找回）。</p>
+        </div>
+        <div class="forgot__item">
+          <span class="forgot__tag forgot__tag--user">收件人</span>
+          <p>查件<b>不需要账号</b>，直接用手机号、8 位取件码或运单号自助查询即可。</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="forgotVisible = false">知道了</el-button>
+        <el-button type="primary" @click="goQueryFromForgot">去自助查询</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -196,6 +239,15 @@ function fillAccount(account) {
 
 /** 跳转免登录自助查询页（收件人不用登录） */
 function goQuery() {
+  router.push('/query')
+}
+
+/** 「忘记密码」弹窗是否可见 */
+const forgotVisible = ref(false)
+
+/** 从「忘记密码」弹窗跳到自助查询 */
+function goQueryFromForgot() {
+  forgotVisible.value = false
   router.push('/query')
 }
 
@@ -587,6 +639,58 @@ onMounted(() => {
   letter-spacing: 0.3px;
   color: var(--es-text-3);
   opacity: 0.85;
+}
+
+/* ==================== 忘记密码 ==================== */
+.login__assist {
+  display: flex;
+  justify-content: flex-end;
+  margin: -6px 0 14px;
+  font-size: 13px;
+}
+
+.forgot {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.forgot__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.forgot__item p {
+  margin: 0;
+  flex: 1;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--es-text-2);
+}
+
+.forgot__tag {
+  flex-shrink: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.forgot__tag--staff {
+  color: #1557cc;
+  background: #e8f0ff;
+}
+
+.forgot__tag--admin {
+  color: #7c4dff;
+  background: #f1ecff;
+}
+
+.forgot__tag--user {
+  color: #0c9472;
+  background: #e7f9f4;
 }
 
 /* ==================== 响应式：窄屏隐藏品牌区 ==================== */
