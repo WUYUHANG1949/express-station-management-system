@@ -84,7 +84,7 @@
           </el-form-item>
         </el-form>
 
-        <!-- 演示账号：点击一键填充 -->
+        <!-- 演示账号：点击一键填充（只列管理员与员工，收件人走免登录查询） -->
         <div class="login__demo">
           <div class="login__demo-title">
             <el-icon><InfoFilled /></el-icon>
@@ -171,11 +171,17 @@ const features = [
   { icon: 'DataAnalysis', title: '数据统计', desc: '出入库趋势、快递公司分布与驿站业务量排行' }
 ]
 
-/** 演示账号列表（与后端初始化数据保持一致） */
+/**
+ * 演示账号列表（与后端初始化数据保持一致）
+ *
+ * 说明：**不列普通用户**。收件人不需要登录，查件走免登录自助查询（/query），
+ * 在登录页摆一个"普通用户"账号会与这一设计自相矛盾。
+ * 数据初始化中仍保留 user01 / user02 两个普通用户账号（管理员可在「用户管理」中看到），
+ * 用于需要演示三级数据权限的场合，只是不再作为登录页的推荐入口。
+ */
 const demoAccounts = [
   { username: 'admin', password: '123456', role: '系统管理员' },
-  { username: 'staff01', password: '123456', role: '驿站员工' },
-  { username: 'user01', password: '123456', role: '普通用户' }
+  { username: 'staff01', password: '123456', role: '驿站员工' }
 ]
 
 /**
