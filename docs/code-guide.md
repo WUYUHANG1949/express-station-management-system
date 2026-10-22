@@ -7,7 +7,7 @@
 
 ## 一、三种打开方式
 
-### 方式 1：浏览器直接看（什么都不用装，推荐给导师看）
+### 方式 1：浏览器直接看（什么都不用装，推荐给评审看）
 
 打开 <https://github.com/WUYUHANG1949/express-station-management-system>
 
